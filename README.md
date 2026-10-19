@@ -6,6 +6,9 @@ Site para organizar anotações de estudo em **pastas** e **cadernos** e baixar 
 - 7 modelos próprios (Morango, Lavanda, Menta, Pêssego & Mel, Céu de Algodão, Rabisco e Matcha Latte), em A4 ou Carta, com prévia ao vivo
 - Barra de formatação, várias páginas por caderno, capas nos capítulos e imagens no meio do texto
 - Busca em todos os cadernos
+- Início com abas (Visão geral, Pastas, Cadernos, Etiquetas), animações e personalização (nome, cor do site, desenhos, seções)
+- Editor em abas (Escrever, Modelo, Informações, Capas, IA) e modos Escrever / Lado a lado / Prévia
+- Assistente de IA com a API do Claude (chave da própria pessoa): resumir página, organizar texto colado, perguntas de revisão e explicar termos
 - Tudo fica salvo no navegador (IndexedDB), sem login e sem servidor. Backup e restauração em arquivo `.json`.
 
 ## Rodar no computador
@@ -40,6 +43,7 @@ img/
 js/
   main.js             início do site: rotas (#/...), backup, busca, exemplo
   app/state.js        estado compartilhado entre as telas
+  ai/assistant.js     assistente de IA (SDK oficial da Anthropic, chave guardada no navegador)
   data/
     store.js          salva pastas, cadernos e imagens no navegador; backup
     templates.js      os 7 modelos: paletas e estilos
@@ -56,10 +60,11 @@ js/
     colors.js         cores pastel e seletor de cor
     cards.js          cartões de caderno/pasta, etiquetas, favoritos
     dialogs.js        janelas (nova pasta, novo caderno, confirmar)
+    prefs.js          aparência do início (nome, cor, desenhos, seções)
     toolbar.js        barra de formatação
     covers.js         capas: recorte de fotos e estampas
   views/              uma tela por arquivo
-    home.js  folder.js  editor.js  search.js  tag.js
+    home.js  folder.js  editor.js  search.js  tag.js  settings.js
 docs/
   SINTAXE.md          como escrever as anotações (todos os símbolos)
   ROADMAP.md          o que já tem e próximos passos
@@ -78,4 +83,11 @@ O PDF usa a própria prévia: o botão abre a impressão do navegador com `print
 
 - [JSZip 3.10.1](https://stuk.github.io/jszip/): monta o arquivo .docx
 - [Lucide 0.460.0](https://lucide.dev): ícones
+- [SDK da Anthropic 0.131.0](https://github.com/anthropics/anthropic-sdk-typescript): assistente de IA (carregado só quando a IA é usada)
 - Google Fonts: Fredoka, Roboto e Roboto Mono (site); Nunito, Quicksand, Lora, Comfortaa, Pacifico e Caveat (modelos)
+
+## Assistente de IA
+
+Em **Configurações → Assistente de IA**, cada pessoa cola a própria chave da API do Claude (criada em https://console.anthropic.com/settings/keys) e escolhe o modelo (Claude Opus 5.5 por padrão, ou Sonnet 5.5 / Haiku 5.5). A chave fica só no navegador (`localStorage`) e os pedidos vão direto para `api.anthropic.com`, cobrados na conta da pessoa.
+
+No editor, a aba **IA** tem quatro tarefas. A resposta vem na mesma sintaxe do caderno (`docs/SINTAXE.md`) e pode ir para uma página nova, para o fim da página ou para onde está o cursor.

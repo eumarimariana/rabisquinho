@@ -46,15 +46,19 @@ export async function confirmDialog(title, text, okLabel){
 }
 export async function newNotebookDialog(folderId){
   const startColor = randomColor();
+  const folders = folderId ? [] : await store.listFolders();
   const form = await openDialog(`
     <h2>Novo caderno</h2>
     <label class="field">Nome da aula ou tema<input type="text" id="nb-lesson" maxlength="120" placeholder="Ex.: Aula 5: mitose"></label>
+    ${folderId ? "" : `<label class="field">Pasta<select id="nb-folder">${folders.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join("")}</select></label>`}
     <div><p>Cor da capa</p>${colorPicker("color", startColor)}</div>
     <div><p>Escolha o modelo</p><div class="tpls">${TEMPLATES.map((t,i)=>`<button type="button" class="tpl" data-pick="tpl" data-value="${t.id}" aria-pressed="${i===0}">
       <span class="dots">${t.dots.map(c=>`<i style="background:${c}"></i>`).join("")}</span><b>${esc(t.name)}</b><small>${esc(t.desc)}</small></button>`).join("")}</div></div>
     <div class="row end"><button class="btn" value="cancel">Cancelar</button><button class="btn primary" value="ok">Criar caderno</button></div>`,
     form => { pickGroup(form,"tpl"); wireColorPicker(form,"color"); setTimeout(()=>$("#nb-lesson",form).focus()); });
   if(!form) return;
+  if(!folderId) folderId = $("#nb-folder", form)?.value;
+  if(!folderId) return;
   const folder = await store.getFolder(folderId);
   const nb = await store.saveNotebook({id:store.uid(), folderId, tpl:picked(form,"tpl")||TEMPLATES[0].id, page:"a4", color:picked(form,"color")||startColor,
     subject: folder?.name || "", lesson:$("#nb-lesson",form).value.trim(), icon:"", prof:"", year:String(new Date().getFullYear()),

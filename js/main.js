@@ -9,6 +9,8 @@ import { folderView } from "./views/folder.js";
 import { editorView } from "./views/editor.js";
 import { searchView } from "./views/search.js";
 import { tagView } from "./views/tag.js";
+import { settingsView } from "./views/settings.js";
+import { applyPrefs } from "./ui/prefs.js";
 
 async function router(){
   if(app.editor?.timer){ await app.editor.flush(); }
@@ -19,6 +21,8 @@ async function router(){
     else if(kind==="caderno" && id){ const [nid, pg] = id.split("/"); await editorView(nid, +pg || 0); }
     else if(kind==="busca") await searchView(decodeURIComponent(id||""));
     else if(kind==="etiqueta" && id) await tagView(decodeURIComponent(id));
+    else if(kind==="aba") await homeView(id);
+    else if(kind==="config") await settingsView();
     else await homeView();
   }catch(e){
     console.error(e);
@@ -62,6 +66,7 @@ async function seed(){
   }catch(e){}
 }
 
+applyPrefs();
 store.askPersist();
 seed().then(router);
 

@@ -26,6 +26,11 @@ Em ordem de prioridade.
 7. [ ] **Arrastar e soltar** para reordenar cadernos ou mudar de pasta
 8. [ ] **Lixeira**: itens excluídos ficam 30 dias antes de sumir
 
+### Novidades
+- [x] Início com abas, animações e personalização
+- [x] Editor em abas, com modo só de escrever
+- [x] Assistente de IA (API do Claude, chave própria): resumir, organizar, revisar, explicar
+
 ### Estudo
 9. [ ] **Modo revisão / flashcards** a partir dos termos marcados com `!` e `{{ }}`
 10. [ ] **Estatísticas**: páginas e tempo de estudo por matéria

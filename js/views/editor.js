@@ -10,6 +10,7 @@ import { openDialog, pickGroup, picked, confirmDialog } from "../ui/dialogs.js";
 import { attachToolbar, insertBlock } from "../ui/toolbar.js";
 import { shrinkImage, cropToBanner, PATTERNS, patternColors, patternCanvas, patternBlob } from "../ui/covers.js";
 import { app } from "../app/state.js";
+import { TASKS, runTask, hasKey, currentModelName } from "../ai/assistant.js";
 
 /* ---------- tela: editor ---------- */
 const FIELDS = [["subject","Matéria","wide"],["lesson","Aula / tema","wide"],["prof","Professor(a)",""],["year","Ano",""],
@@ -54,51 +55,77 @@ export async function editorView(id, startPage=0){
   const [folder, folders] = await Promise.all([store.getFolder(nb.folderId), store.listFolders()]);
   crumbs([{label:"Início", href:"#/"}, ...(folder ? [{label:folder.name, href:`#/pasta/${folder.id}`}] : []), {label:nbTitle(nb)}]);
 
+  const TABS = [["escrever","Escrever","pen-line"],["modelo","Modelo","palette"],["info","Info","info"],["capas","Capas","image"],["ia","IA","sparkles"]];
+  let mode = "split", tab = "escrever";
+  try{ mode = localStorage.getItem("cadernim-modo") || "split"; tab = sessionStorage.getItem("cadernim-aba") || "escrever"; }catch(e){}
+  if(!TABS.some(t=>t[0]===tab)) tab = "escrever";
   view.innerHTML = `
-  <div class="editor">
-    <section class="panel" aria-label="Editor">
-      <h2>Modelo</h2>
-      <div class="tpls" id="tpls" role="group" aria-label="Escolha o modelo"></div>
-      <div class="paper-size" role="group" aria-label="Tamanho do papel">
-        <span>Papel</span>
-        <button type="button" class="seg" data-page="a4" aria-pressed="${nb.page!=="letter"}">A4</button>
-        <button type="button" class="seg" data-page="letter" aria-pressed="${nb.page==="letter"}">Carta</button>
+  <div class="editor-bar">
+    <div class="view-mode" role="group" aria-label="Como ver o editor">
+      <button type="button" class="seg" data-mode="write" aria-pressed="${mode==="write"}">${ic("pen-line")}Escrever</button>
+      <button type="button" class="seg" data-mode="split" aria-pressed="${mode==="split"}">${ic("columns-2")}Lado a lado</button>
+      <button type="button" class="seg" data-mode="preview" aria-pressed="${mode==="preview"}">${ic("eye")}Prévia</button>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="dl-docx" type="button">${ic("file-down")}Baixar .docx</button>
+      <button class="btn" id="dl-pdf" type="button">${ic("file-text")}PDF</button>
+      <button class="btn icon-btn" id="copy-all" type="button" title="Copiar texto formatado" aria-label="Copiar texto formatado">${ic("copy")}</button>
+      <button class="btn icon-btn fav-toggle" id="fav-nb" type="button" aria-pressed="${!!nb.fav}" title="${nb.fav?"Tirar dos favoritos":"Favoritar"}" aria-label="${nb.fav?"Tirar dos favoritos":"Favoritar"}">${ic("star")}</button>
+      <span class="saved" id="saved">Salvo</span>
+    </div>
+  </div>
+  <div class="editor mode-${mode}" id="editor">
+    <section class="panel ed-panel" aria-label="Editor">
+      <nav class="ed-tabs" role="tablist" aria-label="Partes do editor">${TABS.map(([id,name,icon])=>
+        `<button type="button" role="tab" class="ed-tab" data-tab="${id}" aria-selected="${id===tab}" aria-controls="tab-${id}">${ic(icon)}<span>${name}</span></button>`).join("")}</nav>
+
+      <div class="ed-pane" id="tab-escrever" role="tabpanel" ${tab==="escrever"?"":"hidden"}>
+        <div class="pages" id="pages" role="tablist" aria-label="Páginas do caderno"></div>
+        <div class="toolbar" id="toolbar" role="toolbar" aria-label="Formatação"></div>
+        <textarea id="f-text" class="write-area" spellcheck="true" aria-label="Texto da página"></textarea>
+        <details><summary>Como formatar</summary><div class="cheat">${CHEAT}</div></details>
       </div>
-      <h2>Cor da capa</h2>
-      <div id="nb-color">${colorPicker("color", colorOf(nb), true)}</div>
-      <h2>Informações</h2>
-      <div class="fields">${FIELDS.map(([k,l,c])=>`<label class="field ${c}">${l}<input type="text" id="f-${k}"></label>`).join("")}
-        <div class="field wide"><label for="tag-new">Etiquetas</label>
-          <div class="tag-input" id="tag-input"><span class="tags" id="tag-list"></span>
-            <input type="text" id="tag-new" list="tag-sugg" maxlength="30" placeholder="Ex.: prova, revisar (Enter para adicionar)"></div>
-          <datalist id="tag-sugg">${allTags(await store.listNotebooks()).map(([t])=>`<option value="${esc(t)}">`).join("")}</datalist>
-        </div></div>
-      <h2>Suas anotações</h2>
-      <div class="pages" id="pages" role="tablist" aria-label="Páginas do caderno"></div>
-      <div class="toolbar" id="toolbar" role="toolbar" aria-label="Formatação"></div>
-      <textarea id="f-text" spellcheck="true" aria-label="Texto da página"></textarea>
-      <div class="covers-box">
+
+      <div class="ed-pane" id="tab-modelo" role="tabpanel" ${tab==="modelo"?"":"hidden"}>
+        <h2>Modelo</h2>
+        <div class="tpls" id="tpls" role="group" aria-label="Escolha o modelo"></div>
+        <div class="paper-size" role="group" aria-label="Tamanho do papel">
+          <span>Papel</span>
+          <button type="button" class="seg" data-page="a4" aria-pressed="${nb.page!=="letter"}">A4</button>
+          <button type="button" class="seg" data-page="letter" aria-pressed="${nb.page==="letter"}">Carta</button>
+        </div>
+        <h2>Cor da capa</h2>
+        <div id="nb-color">${colorPicker("color", colorOf(nb), true)}</div>
+      </div>
+
+      <div class="ed-pane" id="tab-info" role="tabpanel" ${tab==="info"?"":"hidden"}>
+        <h2>Informações do cabeçalho e rodapé</h2>
+        <div class="fields">${FIELDS.map(([k,l,c])=>`<label class="field ${c}">${l}<input type="text" id="f-${k}"></label>`).join("")}
+          <div class="field wide"><label for="tag-new">Etiquetas</label>
+            <div class="tag-input" id="tag-input"><span class="tags" id="tag-list"></span>
+              <input type="text" id="tag-new" list="tag-sugg" maxlength="30" placeholder="Ex.: prova, revisar (Enter para adicionar)"></div>
+            <datalist id="tag-sugg">${allTags(await store.listNotebooks()).map(([t])=>`<option value="${esc(t)}">`).join("")}</datalist>
+          </div></div>
+        <div class="editor-tools">
+          <label class="field" style="flex-direction:row;align-items:center;gap:8px">Pasta
+            <select id="move">${folders.map(f=>`<option value="${f.id}" ${f.id===nb.folderId?"selected":""}>${esc(f.name)}</option>`).join("")}</select></label>
+          <button class="btn danger" id="del-nb" type="button">${ic("trash-2")}Excluir caderno</button>
+        </div>
+      </div>
+
+      <div class="ed-pane" id="tab-capas" role="tabpanel" ${tab==="capas"?"":"hidden"}>
         <h2>Capas dos capítulos</h2>
-        <p class="help">Uma faixa com imagem em cima de cada tópico principal (<code>#</code>) desta página.</p>
+        <p class="help">Uma faixa com imagem em cima de cada tópico principal (<code>#</code>) da página que está aberta em "Escrever".</p>
         <div class="covers" id="covers"></div>
         <input type="file" id="cover-file" accept="image/*" hidden>
         <input type="file" id="pic-file" accept="image/*" hidden>
       </div>
-      <details><summary>Como formatar</summary><div class="cheat">${CHEAT}</div></details>
-      <div class="editor-tools">
-        <label class="field" style="flex-direction:row;align-items:center;gap:8px">Pasta
-          <select id="move">${folders.map(f=>`<option value="${f.id}" ${f.id===nb.folderId?"selected":""}>${esc(f.name)}</option>`).join("")}</select></label>
-        <button class="btn danger" id="del-nb" type="button">${ic("trash-2")}Excluir caderno</button>
+
+      <div class="ed-pane" id="tab-ia" role="tabpanel" ${tab==="ia"?"":"hidden"}>
+        <div id="ai-box"></div>
       </div>
     </section>
     <section class="preview-wrap" aria-label="Pré-visualização">
-      <div class="actions">
-        <button class="btn primary" id="dl-docx" type="button">${ic("file-down")}Baixar arquivo (.docx)</button>
-        <button class="btn" id="dl-pdf" type="button">${ic("file-text")}Baixar PDF</button>
-        <button class="btn" id="copy-all" type="button">${ic("copy")}Copiar texto formatado</button>
-        <button class="btn fav-toggle" id="fav-nb" type="button" aria-pressed="${!!nb.fav}">${ic("star")}${nb.fav?"Favorito":"Favoritar"}</button>
-        <span class="saved" id="saved">Salvo</span>
-      </div>
       <div class="paper-scroll"><div class="sheets" id="sheets"></div></div>
       <p class="help" id="credit"></p>
     </section>
@@ -252,7 +279,7 @@ export async function editorView(id, startPage=0){
 
   $("#fav-nb").onclick = () => {
     app.editor.nb.fav = !app.editor.nb.fav; const b = $("#fav-nb");
-    b.setAttribute("aria-pressed", app.editor.nb.fav); b.innerHTML = ic("star") + (app.editor.nb.fav ? "Favorito" : "Favoritar"); paint(b);
+    b.setAttribute("aria-pressed", app.editor.nb.fav); const lbl = app.editor.nb.fav ? "Tirar dos favoritos" : "Favoritar"; b.title = lbl; b.setAttribute("aria-label", lbl);
     schedule(); toast(app.editor.nb.fav ? "Adicionado aos favoritos!" : "Tirado dos favoritos.");
   };
   $("#pic-file").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; if(f) addPicture(f); });
@@ -340,6 +367,120 @@ export async function editorView(id, startPage=0){
     }
     toast(ok ? "Copiado! Agora é só colar onde quiser." : "Não deu para copiar. Selecione a folha e use Ctrl+C.");
   };
+  /* ---------- abas do editor e modo de visualização ---------- */
+  let sel = {a:0, b:0};
+  text.addEventListener("blur", () => { sel = {a:text.selectionStart, b:text.selectionEnd}; });
+  const showTab = id => {
+    if(document.activeElement === text) sel = {a:text.selectionStart, b:text.selectionEnd};
+    document.querySelectorAll(".ed-tab").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === id));
+    document.querySelectorAll(".ed-pane").forEach(p => p.hidden = p.id !== "tab-" + id);
+    try{ sessionStorage.setItem("cadernim-aba", id); }catch(e){}
+    if(id === "capas") drawCovers();
+    if(id === "ia") drawAI();
+    if(id === "escrever") text.focus({preventScroll:true});
+  };
+  $(".ed-tabs").addEventListener("click", e => { const b = e.target.closest(".ed-tab"); if(b) showTab(b.dataset.tab); });
+  $(".ed-tabs").addEventListener("keydown", e => {
+    if(!["ArrowLeft","ArrowRight"].includes(e.key)) return;
+    const tabs = [...document.querySelectorAll(".ed-tab")], i = tabs.indexOf(document.activeElement); if(i < 0) return;
+    const n = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length]; n.focus(); showTab(n.dataset.tab);
+  });
+  $(".view-mode").addEventListener("click", e => {
+    const b = e.target.closest("[data-mode]"); if(!b) return;
+    $("#editor").className = "editor mode-" + b.dataset.mode;
+    document.querySelectorAll(".view-mode .seg").forEach(x => x.setAttribute("aria-pressed", x === b));
+    try{ localStorage.setItem("cadernim-modo", b.dataset.mode); }catch(err){}
+    if(b.dataset.mode !== "write") render();
+  });
+
+  /* ---------- assistente de IA ---------- */
+  const WHERE = [["nova","Numa página nova"],["fim","No fim desta página"],["cursor","Onde está o cursor"]];
+  const DEFAULT_WHERE = {resumo:"nova", organizar:"fim", revisao:"nova", explicar:"cursor"};
+  let ai = {task:"resumo", where:"nova", abort:null, result:""};
+  const drawAI = () => {
+    const box = $("#ai-box");
+    if(!hasKey()){
+      box.innerHTML = `<div class="ai-empty">${ic("sparkles")}<h2>Assistente de IA</h2>
+        <p>Ele resume páginas, organiza textos colados, cria perguntas de revisão e explica termos. Para usar, coloque sua chave da API do Claude (Anthropic) ou do OpenRouter nas Configurações.</p>
+        <a class="btn primary" href="#/config">${ic("settings")}Ir para Configurações</a></div>`;
+      paint(box); return;
+    }
+    const t = TASKS[ai.task];
+    const picked = text.value.slice(sel.a, sel.b).trim();
+    box.innerHTML = `
+      <h2>Assistente de IA</h2>
+      <p class="help">Usando ${esc(currentModelName())} · <a href="#/config">trocar</a></p>
+      <div class="ai-tasks">${Object.entries(TASKS).map(([id,x]) => `<button type="button" class="ai-task" data-task="${id}" aria-pressed="${id===ai.task}">${ic(x.icon)}<b>${x.name}</b><small>${x.help}</small></button>`).join("")}</div>
+      ${t.needsText
+        ? `<label class="field">${ai.task==="explicar" ? "Termo ou trecho" : "Texto para organizar"}<textarea id="ai-src" rows="${ai.task==="explicar"?3:8}" placeholder="${ai.task==="explicar" ? "Ex.: mitocôndria" : "Cole aqui o texto da aula, de um PDF ou de uma transcrição"}">${esc(ai.task==="explicar" ? picked : "")}</textarea></label>`
+        : `<p class="help">${ic("file-text")} Vai usar o texto da <b>Página ${app.editor.active+1}</b>.</p>`}
+      <label class="field">Pedido extra (opcional)<input type="text" id="ai-extra" placeholder="Ex.: mais curto, foco nas datas, linguagem bem simples"></label>
+      <div class="field"><span>Onde colocar o resultado</span>
+        <div class="row" id="ai-where">${WHERE.map(([v,l]) => `<button type="button" class="seg" data-v="${v}" aria-pressed="${v===ai.where}">${l}</button>`).join("")}</div></div>
+      <div class="row">
+        <button type="button" class="btn primary" id="ai-go">${ic("sparkles")}Gerar</button>
+        <button type="button" class="btn" id="ai-stop" hidden>${ic("square")}Parar</button>
+        <span class="status-msg" id="ai-status" role="status"></span>
+      </div>
+      <div class="ai-out" id="ai-out" ${ai.result ? "" : "hidden"}>
+        <pre id="ai-text">${esc(ai.result)}</pre>
+        <div class="row"><button type="button" class="btn primary" id="ai-insert">${ic("check")}Colocar no caderno</button>
+          <button type="button" class="btn" id="ai-discard">${ic("x")}Descartar</button></div>
+      </div>`;
+    paint(box);
+    box.querySelector(".ai-tasks").onclick = e => { const b = e.target.closest("[data-task]"); if(!b || ai.abort) return;
+      ai.task = b.dataset.task; ai.where = DEFAULT_WHERE[ai.task]; drawAI(); };
+    $("#ai-where").onclick = e => { const b = e.target.closest("[data-v]"); if(!b) return; ai.where = b.dataset.v;
+      $("#ai-where").querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b)); };
+    $("#ai-go").onclick = generate;
+    $("#ai-stop").onclick = () => ai.abort?.abort();
+    const ins = $("#ai-insert"); if(ins) ins.onclick = insertResult;
+    const dis = $("#ai-discard"); if(dis) dis.onclick = () => { ai.result = ""; drawAI(); };
+  };
+  const generate = async () => {
+    const t = TASKS[ai.task], st = $("#ai-status");
+    const src = t.needsText ? ($("#ai-src")?.value || "").trim() : app.editor.pages[app.editor.active].text.trim();
+    if(!src){ st.textContent = t.needsText ? "Escreva ou cole um texto primeiro." : "Esta página está vazia. Escreva algo antes de pedir um resumo."; return; }
+    ai.abort = new AbortController(); ai.result = "";
+    $("#ai-go").disabled = true; $("#ai-stop").hidden = false; $("#ai-out").hidden = false; $("#ai-text").textContent = "";
+    st.textContent = "Pensando…";
+    let frame = 0;
+    try{
+      ai.result = await runTask(ai.task, {text:src, extra:$("#ai-extra").value, context: ai.task==="explicar" ? app.editor.pages[app.editor.active].text.slice(0, 6000) : "",
+        signal: ai.abort.signal,
+        onText: out => { st.textContent = "Escrevendo…"; if(!frame) frame = requestAnimationFrame(() => { frame = 0; const el = $("#ai-text"); if(el){ el.textContent = out; el.scrollTop = el.scrollHeight; } }); }});
+      $("#ai-text").textContent = ai.result;
+      st.textContent = "Pronto! Confira e coloque no caderno.";
+    }catch(err){
+      st.textContent = err.message;
+      if(!ai.result) $("#ai-out").hidden = !$("#ai-text").textContent;
+      ai.result = ai.result || $("#ai-text").textContent;
+    }finally{
+      ai.abort = null;
+      const go = $("#ai-go"), stop = $("#ai-stop"); if(go) go.disabled = false; if(stop) stop.hidden = true;
+      if(ai.result) drawAI(), ($("#ai-status").textContent = "Pronto! Confira e coloque no caderno.");
+    }
+  };
+  const insertResult = () => {
+    const out = ai.result.trim(); if(!out) return;
+    const E = app.editor;
+    if(ai.where === "nova"){
+      E.pages.splice(E.active + 1, 0, {id:store.uid(), text:out + "\n"});
+      selectPage(E.active + 1);
+    }else if(ai.where === "fim"){
+      E.pages[E.active].text = (E.pages[E.active].text.replace(/\s+$/, "") + "\n\n" + out + "\n");
+      text.value = E.pages[E.active].text;
+    }else{
+      showTab("escrever");
+      text.setSelectionRange(sel.b, sel.b);
+      insertBlock(text, out);
+      E.pages[E.active].text = text.value;
+    }
+    ai.result = ""; render(); schedule();
+    showTab("escrever");
+    toast("Pronto! O texto da IA entrou no caderno.");
+  };
+
   drawPages();
   render();
   drawCovers();
