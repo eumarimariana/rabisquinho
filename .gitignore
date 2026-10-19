@@ -1,0 +1,16 @@
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+*.swp
+
+# Backups exportados pelo site (dados pessoais)
+cadernim-backup-*.json
+notas-fofas-backup-*.json
+
+# Arquivos gerados para teste
+*.docx
+*.pdf

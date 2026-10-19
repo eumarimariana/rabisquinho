@@ -1,0 +1,354 @@
+// Tela do editor: modelo, informações, páginas, texto, capas e prévia.
+import { TEMPLATES } from "../data/templates.js";
+import * as store from "../data/store.js";
+import { setTemplate, setImages, coverLine, coverIdOf, pictureLine, parse, bodyModel, headModel, footModel,
+  htmlOf, infoOf, buildDocx, fileName, PAGE, esc, notebookText } from "../engine/index.js";
+import { $, view, ic, paint, toast, crumbs, saveFile, norm } from "../ui/dom.js";
+import { colorOf, colorPicker, wireColorPicker } from "../ui/colors.js";
+import { tplById, tplFor, nbTitle, allTags, tagColor } from "../ui/cards.js";
+import { openDialog, pickGroup, picked, confirmDialog } from "../ui/dialogs.js";
+import { attachToolbar, insertBlock } from "../ui/toolbar.js";
+import { shrinkImage, cropToBanner, PATTERNS, patternColors, patternCanvas, patternBlob } from "../ui/covers.js";
+import { app } from "../app/state.js";
+
+/* ---------- tela: editor ---------- */
+const FIELDS = [["subject","Matéria","wide"],["lesson","Aula / tema","wide"],["prof","Professor(a)",""],["year","Ano",""],
+  ["author","Seu nome",""],["footer","Turma / semestre",""],["source","Fonte / referências","wide"]];
+
+const CHEAT = `
+  <h3>Títulos</h3>
+  <code># Título</code><span>Tópico principal (1.0, 2.0...)</span>
+  <code>## Subtítulo</code><span>Subtópico (1.1, 1.2...)</span>
+  <code>### Título</code><span>Sub-subtópico (1.2.1...)</span>
+  <code>? Pergunta</code><span>Faixa com a pergunta-chave</span>
+  <code>?? Pergunta</code><span>Faixa clarinha, menor</span>
+  <h3>Listas e texto</h3>
+  <code>- texto</code><span>Marcador (2 ou 4 espaços antes = mais para dentro)</span>
+  <code>1. texto</code><span>Lista numerada</span>
+  <code>! texto</code><span>Termo importante</span>
+  <code>&gt; texto</code><span>Observação rápida</span>
+  <h3>Caixas</h3>
+  <code>&gt;&gt; Título | texto</code><span>Bloco de observação importante</span>
+  <code>!!! Título | texto</code><span>Caixa de alerta</span>
+  <code>?! Tema | pergunta | texto</code><span>Seção "Você sabia?"</span>
+  <code>@ 1822 | evento</code><span>Linha do tempo</span>
+  <code>[capa:…]</code><span>Capa do capítulo (use "Capas dos capítulos" abaixo)</span>
+  <code>Tabela: legenda</code><span>Legenda numerada da tabela</span>
+  <code>| a | b |</code><span>Tabela (a primeira linha é o título)</span>
+  <h3>Destaques</h3>
+  <code>**negrito**</code><span><code>*itálico*</code> <code>__sublinhado__</code></span>
+  <code>==amarelo==</code><span>Marca-texto amarelo, e <code>++texto++</code> na cor secundária</span>
+  <code>{{termo}}</code><span>Negrito na cor principal do modelo</span>`;
+
+// Como no Word: enche a 1ª coluna antes de passar para a 2ª (altura mínima de uma página).
+function fillColumns(el, minPt){
+  let h = minPt * 4/3;
+  el.style.height = h + "px";
+  for(let i=0; i<60 && el.scrollWidth > el.clientWidth + 2; i++){ h += 120; el.style.height = h + "px"; }
+}
+
+
+export async function editorView(id, startPage=0){
+  const nb = await store.getNotebook(id);
+  if(!nb){ location.hash = "#/"; return; }
+  const [folder, folders] = await Promise.all([store.getFolder(nb.folderId), store.listFolders()]);
+  crumbs([{label:"Início", href:"#/"}, ...(folder ? [{label:folder.name, href:`#/pasta/${folder.id}`}] : []), {label:nbTitle(nb)}]);
+
+  view.innerHTML = `
+  <div class="editor">
+    <section class="panel" aria-label="Editor">
+      <h2>Modelo</h2>
+      <div class="tpls" id="tpls" role="group" aria-label="Escolha o modelo"></div>
+      <div class="paper-size" role="group" aria-label="Tamanho do papel">
+        <span>Papel</span>
+        <button type="button" class="seg" data-page="a4" aria-pressed="${nb.page!=="letter"}">A4</button>
+        <button type="button" class="seg" data-page="letter" aria-pressed="${nb.page==="letter"}">Carta</button>
+      </div>
+      <h2>Cor da capa</h2>
+      <div id="nb-color">${colorPicker("color", colorOf(nb), true)}</div>
+      <h2>Informações</h2>
+      <div class="fields">${FIELDS.map(([k,l,c])=>`<label class="field ${c}">${l}<input type="text" id="f-${k}"></label>`).join("")}
+        <div class="field wide"><label for="tag-new">Etiquetas</label>
+          <div class="tag-input" id="tag-input"><span class="tags" id="tag-list"></span>
+            <input type="text" id="tag-new" list="tag-sugg" maxlength="30" placeholder="Ex.: prova, revisar (Enter para adicionar)"></div>
+          <datalist id="tag-sugg">${allTags(await store.listNotebooks()).map(([t])=>`<option value="${esc(t)}">`).join("")}</datalist>
+        </div></div>
+      <h2>Suas anotações</h2>
+      <div class="pages" id="pages" role="tablist" aria-label="Páginas do caderno"></div>
+      <div class="toolbar" id="toolbar" role="toolbar" aria-label="Formatação"></div>
+      <textarea id="f-text" spellcheck="true" aria-label="Texto da página"></textarea>
+      <div class="covers-box">
+        <h2>Capas dos capítulos</h2>
+        <p class="help">Uma faixa com imagem em cima de cada tópico principal (<code>#</code>) desta página.</p>
+        <div class="covers" id="covers"></div>
+        <input type="file" id="cover-file" accept="image/*" hidden>
+        <input type="file" id="pic-file" accept="image/*" hidden>
+      </div>
+      <details><summary>Como formatar</summary><div class="cheat">${CHEAT}</div></details>
+      <div class="editor-tools">
+        <label class="field" style="flex-direction:row;align-items:center;gap:8px">Pasta
+          <select id="move">${folders.map(f=>`<option value="${f.id}" ${f.id===nb.folderId?"selected":""}>${esc(f.name)}</option>`).join("")}</select></label>
+        <button class="btn danger" id="del-nb" type="button">${ic("trash-2")}Excluir caderno</button>
+      </div>
+    </section>
+    <section class="preview-wrap" aria-label="Pré-visualização">
+      <div class="actions">
+        <button class="btn primary" id="dl-docx" type="button">${ic("file-down")}Baixar arquivo (.docx)</button>
+        <button class="btn" id="dl-pdf" type="button">${ic("file-text")}Baixar PDF</button>
+        <button class="btn" id="copy-all" type="button">${ic("copy")}Copiar texto formatado</button>
+        <button class="btn fav-toggle" id="fav-nb" type="button" aria-pressed="${!!nb.fav}">${ic("star")}${nb.fav?"Favorito":"Favoritar"}</button>
+        <span class="saved" id="saved">Salvo</span>
+      </div>
+      <div class="paper-scroll"><div class="sheets" id="sheets"></div></div>
+      <p class="help" id="credit"></p>
+    </section>
+  </div>`;
+
+  const F = {}; for(const [k] of FIELDS) F[k] = $("#f-"+k);
+  for(const k in F) F[k].value = nb[k] ?? "";
+  const pages = Array.isArray(nb.pages) && nb.pages.length ? nb.pages.map(p=>({...p})) : [{id:store.uid(), text:nb.text||""}];
+  app.editor = {nb, F, pages, active:0, timer:null, html:{}};
+  const text = $("#f-text");
+  text.value = pages[0].text;
+
+  // imagens de capa deste caderno
+  const images = {};
+  for(const im of await store.listImages(nb.id)) images[im.id] = {...im, url:URL.createObjectURL(im.blob)};
+  app.editor.images = images;
+  setImages(images);
+
+  const current = () => {
+    const d = {...app.editor.nb}; for(const k in F) d[k] = F[k].value;
+    d.pages = app.editor.pages.map(p=>({...p}));
+    d.text = notebookText(d);
+    return d;
+  };
+  const drawPages = () => {
+    const {pages, active} = app.editor;
+    $("#pages").innerHTML = pages.map((p,i)=>`<button type="button" class="page-tab" role="tab" data-i="${i}" aria-selected="${i===active}">Página ${i+1}</button>`).join("")+
+      `<button type="button" class="page-add" id="page-add">${ic("plus")}Nova página</button>`+
+      (pages.length>1 ? `<button type="button" class="page-del" id="page-del" title="Excluir página ${active+1}" aria-label="Excluir página ${active+1}">${ic("trash-2")}</button>` : "");
+    paint($("#pages"));
+  };
+  const selectPage = i => {
+    app.editor.active = Math.max(0, Math.min(i, app.editor.pages.length-1));
+    text.value = app.editor.pages[app.editor.active].text;
+    drawPages(); markActive(); drawCovers();
+  };
+  /* capítulos (# título) da página atual e a capa logo acima de cada um */
+  const chapters = () => {
+    const lines = app.editor.pages[app.editor.active].text.split("\n"), out = [];
+    lines.forEach((l,i)=>{ const m = l.match(/^#\s+(.*)/); if(m) out.push({line:i, title:m[1].trim()||"Sem título", cover: i>0 ? coverIdOf(lines[i-1]) : null}); });
+    return out;
+  };
+  const drawCovers = () => {
+    const list = chapters();
+    $("#covers").innerHTML = list.length ? list.map((c,k)=>`
+      <div class="cover-row" data-k="${k}">
+        <span class="cover-thumb">${c.cover && images[c.cover] ? `<img src="${images[c.cover].url}" alt="">` : ic("image")}</span>
+        <b>${esc(c.title)}</b>
+        <span class="cover-btns">
+          <button type="button" class="btn sm" data-act="photo">${ic("image-up")}Foto</button>
+          <button type="button" class="btn sm" data-act="pattern">${ic("sparkles")}Estampa</button>
+          ${c.cover ? `<button type="button" class="btn sm danger" data-act="remove" aria-label="Tirar capa">${ic("x")}</button>` : ""}
+        </span>
+      </div>`).join("") : `<p class="help">Escreva um tópico com <code># Título</code> para poder colocar uma capa.</p>`;
+    paint($("#covers"));
+  };
+  const setCover = async (k, made) => {
+    const c = chapters()[k]; if(!c) return;
+    const id = store.uid();
+    await store.saveImage({id, notebookId:nb.id, blob:made.blob, type:made.type});
+    images[id] = {id, blob:made.blob, type:made.type, url:URL.createObjectURL(made.blob)};
+    const lines = app.editor.pages[app.editor.active].text.split("\n");
+    if(c.cover){ lines[c.line-1] = coverLine(id); store.deleteImage(c.cover); }
+    else lines.splice(c.line, 0, coverLine(id));
+    app.editor.pages[app.editor.active].text = text.value = lines.join("\n");
+    render(); drawCovers(); schedule(); toast("Capa colocada!");
+  };
+  const removeCover = k => {
+    const c = chapters()[k]; if(!c?.cover) return;
+    const lines = app.editor.pages[app.editor.active].text.split("\n");
+    lines.splice(c.line-1, 1); store.deleteImage(c.cover);
+    app.editor.pages[app.editor.active].text = text.value = lines.join("\n");
+    render(); drawCovers(); schedule(); toast("Capa retirada.");
+  };
+  const patternDialog = async () => {
+    const R = tplFor(app.editor.nb), colors = patternColors(R);
+    const form = await openDialog(`<h2>Escolha uma estampa</h2><p>Nas cores do modelo ${esc(R.name)}.</p>
+      <div class="patterns">${PATTERNS.map((p,i)=>`<button type="button" class="pattern" data-pick="pat" data-value="${p.id}" aria-pressed="${i===0}">
+        <img src="${patternCanvas(p.id, colors).toDataURL()}" alt=""><span>${p.name}</span></button>`).join("")}</div>
+      <div class="row end"><button class="btn" value="cancel">Cancelar</button><button class="btn primary" value="ok">Usar estampa</button></div>`,
+      form => pickGroup(form, "pat"));
+    return form ? patternBlob(picked(form,"pat")||"dots", colors) : null;
+  };
+  const markActive = () => {
+    document.querySelectorAll("#sheets .paper").forEach((el,i)=>el.classList.toggle("active", i===app.editor.active));
+  };
+  const render = () => {
+    const d = current(), R = tplFor(d);
+    setTemplate(R);
+    const I = infoOf(d);
+    const h = app.editor.html;
+    h.head = htmlOf(headModel(I)); h.body = htmlOf(bodyModel(parse(notebookText(d)), I)); h.foot = htmlOf(footModel(I));
+    const chunks = h.body.split("<!--PB-->");
+    $("#sheets").innerHTML = chunks.map((b,i)=>`<div class="paper" data-i="${i}" title="Página ${i+1}" style="width:${PAGE[R.page].w}pt">
+      <div>${h.head}</div><div class="cols${R.sep?" sep":""}">${b}</div><div>${h.foot}</div></div>`).join("");
+    document.querySelectorAll("#sheets .paper").forEach((el,i)=>{
+      el.querySelectorAll(".pg").forEach(x=>x.textContent = i+1);
+      fillColumns(el.querySelector(".cols"), PAGE[R.page].h - 160);
+    });
+    markActive();
+    $("#credit").textContent = `Modelo ${R.name}: ${R.desc.toLowerCase()}. Papel ${R.page==="a4"?"A4":"Carta"}.`;
+    $("#tpls").innerHTML = TEMPLATES.map(t=>`<button type="button" class="tpl" data-id="${t.id}" aria-pressed="${t.id===R.id}">
+      <span class="dots">${t.dots.map(c=>`<i style="background:${c}"></i>`).join("")}</span><b>${esc(t.name)}</b><small>${esc(t.desc)}</small></button>`).join("");
+  };
+  const persist = async () => {
+    clearTimeout(app.editor.timer); app.editor.timer = null;
+    app.editor.nb = await store.saveNotebook(current());
+    $("#saved").textContent = "Salvo";
+  };
+  const schedule = () => { $("#saved").textContent = "Salvando..."; clearTimeout(app.editor.timer); app.editor.timer = setTimeout(persist, 600); };
+  app.editor.flush = persist;
+
+  for(const k in F) F[k].addEventListener("input", ()=>{ render(); schedule(); });
+  text.addEventListener("input", ()=>{ app.editor.pages[app.editor.active].text = text.value; render(); schedule(); drawCovers(); });
+  /* imagens no meio do texto */
+  const addPicture = async file => {
+    try{
+      const made = await shrinkImage(file);
+      const pid = store.uid();
+      await store.saveImage({id:pid, notebookId:nb.id, kind:"pic", ...made});
+      images[pid] = {id:pid, ...made, url:URL.createObjectURL(made.blob)};
+      const cap = "Legenda da imagem";
+      insertBlock(text, pictureLine(pid, cap));
+      const at = text.value.indexOf(pictureLine(pid, cap)) + pictureLine(pid, "").length - 1 + 3;
+      text.setSelectionRange(at, at + cap.length);
+      toast("Imagem colocada! Escreva a legenda ou apague o texto depois do |.");
+    }catch(err){ console.error(err); toast("Não deu para abrir essa imagem. Tente outra (JPG ou PNG)."); }
+  };
+  attachToolbar($("#toolbar"), text, paint, {onImage: () => $("#pic-file").click()});
+
+  /* etiquetas */
+  app.editor.nb.tags = [...(nb.tags||[])];
+  const drawTags = () => {
+    $("#tag-list").innerHTML = app.editor.nb.tags.map((t,i)=>`<span class="tag" style="--tc:${tagColor(t)}">${esc(t)}<button type="button" data-rm="${i}" aria-label="Tirar etiqueta ${esc(t)}">${ic("x")}</button></span>`).join("");
+    paint($("#tag-list"));
+  };
+  const addTag = raw => {
+    const t = raw.trim().replace(/^#/, "").toLowerCase(); if(!t) return;
+    if(!app.editor.nb.tags.includes(t)){ app.editor.nb.tags.push(t); drawTags(); schedule(); }
+  };
+  $("#tag-new").addEventListener("keydown", e=>{
+    const inp = e.target;
+    if(e.key==="Enter" || e.key===","){ e.preventDefault(); addTag(inp.value); inp.value = ""; }
+    else if(e.key==="Backspace" && !inp.value && app.editor.nb.tags.length){ app.editor.nb.tags.pop(); drawTags(); schedule(); }
+  });
+  $("#tag-new").addEventListener("change", e=>{ if(e.target.value.includes(",") || [...$("#tag-sugg").options].some(o=>o.value===e.target.value)){ e.target.value.split(",").forEach(addTag); e.target.value = ""; } });
+  $("#tag-new").addEventListener("blur", e=>{ if(e.target.value.trim()){ addTag(e.target.value); e.target.value = ""; } });
+  $("#tag-list").addEventListener("click", e=>{ const b = e.target.closest("[data-rm]"); if(b){ app.editor.nb.tags.splice(+b.dataset.rm,1); drawTags(); schedule(); } });
+  $("#tag-input").addEventListener("click", e=>{ if(e.target.id==="tag-input" || e.target.id==="tag-list") $("#tag-new").focus(); });
+  drawTags();
+
+  $("#fav-nb").onclick = () => {
+    app.editor.nb.fav = !app.editor.nb.fav; const b = $("#fav-nb");
+    b.setAttribute("aria-pressed", app.editor.nb.fav); b.innerHTML = ic("star") + (app.editor.nb.fav ? "Favorito" : "Favoritar"); paint(b);
+    schedule(); toast(app.editor.nb.fav ? "Adicionado aos favoritos!" : "Tirado dos favoritos.");
+  };
+  $("#pic-file").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; if(f) addPicture(f); });
+  text.addEventListener("paste", e => {
+    const f = [...(e.clipboardData?.files || [])].find(x => x.type.startsWith("image/"));
+    if(f){ e.preventDefault(); addPicture(f); }
+  });
+  $("#dl-pdf").onclick = () => {
+    const R = tplFor(app.editor.nb);
+    let st = $("#print-size"); if(!st){ st = document.createElement("style"); st.id = "print-size"; document.head.appendChild(st); }
+    st.textContent = `@page{size:${R.page==="a4"?"A4":"letter"};margin:0}`;
+    toast('Na janela que abrir, escolha "Salvar como PDF".');
+    setTimeout(()=>window.print(), 400);
+  };
+  let coverTarget = null;
+  $("#covers").addEventListener("click", async e=>{
+    const b = e.target.closest("[data-act]"); if(!b) return;
+    const k = +b.closest(".cover-row").dataset.k;
+    if(b.dataset.act==="photo"){ coverTarget = k; $("#cover-file").click(); }
+    if(b.dataset.act==="pattern"){ const made = await patternDialog(); if(made) setCover(k, made); }
+    if(b.dataset.act==="remove") removeCover(k);
+  });
+  $("#cover-file").addEventListener("change", async e=>{
+    const file = e.target.files[0]; e.target.value = "";
+    if(!file || coverTarget==null) return;
+    try{ setCover(coverTarget, await cropToBanner(file)); }
+    catch(err){ console.error(err); toast("Não deu para abrir essa imagem. Tente outra (JPG ou PNG)."); }
+  });
+  $("#pages").addEventListener("click", async e=>{
+    const tab = e.target.closest(".page-tab");
+    if(tab){ selectPage(+tab.dataset.i); text.focus(); return; }
+    if(e.target.closest("#page-add")){
+      app.editor.pages.splice(app.editor.active+1, 0, {id:store.uid(), text:""});
+      selectPage(app.editor.active+1); render(); schedule(); text.focus();
+      document.querySelectorAll("#sheets .paper")[app.editor.active]?.scrollIntoView({behavior:"smooth", block:"nearest"});
+      toast("Página adicionada!"); return;
+    }
+    if(e.target.closest("#page-del")){
+      const n = app.editor.active+1;
+      const empty = !app.editor.pages[app.editor.active].text.trim();
+      if(empty || await confirmDialog(`Excluir a página ${n}?`, "O texto desta página será apagado. Isso não pode ser desfeito.", "Excluir página")){
+        app.editor.pages.splice(app.editor.active, 1);
+        selectPage(Math.min(app.editor.active, app.editor.pages.length-1)); render(); schedule(); toast("Página excluída.");
+      }
+    }
+  });
+  $("#sheets").addEventListener("click", e=>{ const p = e.target.closest(".paper"); if(p) selectPage(+p.dataset.i); });
+  F.lesson.addEventListener("change", ()=>crumbs([{label:"Início", href:"#/"}, ...(folder ? [{label:folder.name, href:`#/pasta/${folder.id}`}] : []), {label:nbTitle(current())}]));
+  $(".paper-size").addEventListener("click", e=>{
+    const b = e.target.closest("[data-page]"); if(!b) return;
+    app.editor.nb.page = b.dataset.page;
+    document.querySelectorAll(".paper-size .seg").forEach(x=>x.setAttribute("aria-pressed", x===b));
+    render(); schedule();
+  });
+  $("#tpls").addEventListener("click", e=>{
+    const b = e.target.closest(".tpl"); if(!b) return;
+    app.editor.nb.tpl = b.dataset.id; render(); schedule();
+  });
+  wireColorPicker($("#nb-color"), "color", c => { app.editor.nb.color = c; schedule(); });
+  $("#move").onchange = async e => { app.editor.nb.folderId = e.target.value; await persist(); toast("Caderno movido."); app.refresh(); };
+  $("#del-nb").onclick = async () => {
+    if(await confirmDialog("Excluir este caderno?", "Isso não pode ser desfeito.", "Excluir caderno")){
+      clearTimeout(app.editor.timer); const fid = app.editor.nb.folderId;
+      await store.deleteNotebook(id); app.editor = null; toast("Caderno excluído."); location.hash = `#/pasta/${fid}`;
+    }
+  };
+  $("#dl-docx").onclick = async () => {
+    const btn = $("#dl-docx");
+    if(typeof JSZip === "undefined"){ toast("Não deu para preparar o arquivo. Recarregue a página."); return; }
+    btn.disabled = true;
+    try{ const d = current(); setTemplate(tplFor(d)); setImages(images); saveFile(await buildDocx(d), fileName(d)); toast("Arquivo baixado!"); }
+    catch(e){ console.error(e); toast("Não deu para gerar o arquivo."); }
+    finally{ btn.disabled = false; }
+  };
+  $("#copy-all").onclick = async () => {
+    const h = app.editor.html, full = `<div>${h.body.split("<!--PB-->").map(b=>h.head+b+h.foot).join('<br style="page-break-before:always">')}</div>`;
+    const tmp = document.createElement("div"); tmp.innerHTML = full;
+    let ok = false;
+    try{ await navigator.clipboard.write([new ClipboardItem({"text/html":new Blob([full],{type:"text/html"}),"text/plain":new Blob([tmp.innerText],{type:"text/plain"})})]); ok = true; }
+    catch(e){
+      tmp.contentEditable = "true"; tmp.style.cssText = "position:fixed;left:-9999px;top:0;background:#fff;color:#000";
+      document.body.appendChild(tmp); const r = document.createRange(); r.selectNodeContents(tmp);
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      try{ ok = document.execCommand("copy"); }catch(_){} sel.removeAllRanges(); tmp.remove();
+    }
+    toast(ok ? "Copiado! Agora é só colar onde quiser." : "Não deu para copiar. Selecione a folha e use Ctrl+C.");
+  };
+  drawPages();
+  render();
+  drawCovers();
+  if(startPage) selectPage(startPage);
+  app.editor.focusFind = q => {             // vindo da busca: seleciona a palavra no texto
+    const i = norm(text.value).indexOf(norm(q)); if(i < 0) return;
+    text.scrollIntoView({block:"center"});
+    text.focus({preventScroll:true}); text.setSelectionRange(i, i + q.length);
+    const lh = parseFloat(getComputedStyle(text).lineHeight) || 20;
+    text.scrollTop = Math.max(0, text.value.slice(0, i).split("\n").length * lh - text.clientHeight/2);
+  };
+}

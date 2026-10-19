@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cadernim</title>
+<meta name="description" content="Organize suas anotações em pastas e cadernos e baixe tudo em modelos fofos de caderno digital.">
+<link rel="icon" type="image/svg+xml" href="img/logo.svg">
+<meta name="theme-color" content="#fcf4f9">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Roboto:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Roboto+Mono:wght@400;500&family=Nunito:ital,wght@0,400;0,700;1,400;1,700&family=Quicksand:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&family=Comfortaa:wght@400;700&family=Pacifico&family=Caveat:wght@400;700&display=swap">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/home.css">
+<link rel="stylesheet" href="css/editor.css">
+<link rel="stylesheet" href="css/print.css" media="print">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/"><img src="img/logo.svg" alt="" width="34" height="34"><span class="brand-name">Cader<span>nim</span></span></a>
+    <nav class="crumbs" id="crumbs" aria-label="Você está em"></nav>
+    <form class="search" id="search" role="search">
+      <i data-lucide="search" aria-hidden="true"></i>
+      <input type="search" id="q" placeholder="Buscar nos cadernos" aria-label="Buscar nos cadernos" autocomplete="off">
+    </form>
+    <div class="topbar-actions">
+      <button class="btn ghost" id="backup-out" type="button"><i data-lucide="download" aria-hidden="true"></i>Fazer backup</button>
+      <label class="btn ghost file-btn"><i data-lucide="upload" aria-hidden="true"></i>Restaurar backup<input id="backup-in" type="file" accept="application/json,.json" hidden></label>
+    </div>
+  </header>
+
+  <main id="view" tabindex="-1"></main>
+
+  <footer class="site-foot">
+    <p>Seus cadernos ficam salvos neste navegador. Faça backup de vez em quando para não perder nada.</p>
+    <p>Feito com carinho para estudar. ♡</p>
+  </footer>
+
+  <dialog id="dlg"></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
