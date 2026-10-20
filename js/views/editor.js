@@ -42,12 +42,58 @@ const CHEAT = `
   <code>{{termo}}</code><span>Negrito na cor principal do modelo</span>`;
 
 // Como no Word: enche a 1ª coluna antes de passar para a 2ª (altura mínima de uma página).
-function fillColumns(el, minPt){
-  let h = minPt * 4/3;
-  el.style.height = h + "px";
-  for(let i=0; i<60 && el.scrollWidth > el.clientWidth + 2; i++){ h += 120; el.style.height = h + "px"; }
+/* ---------- folhas da prévia: quebra automática de página ----------
+   Cada folha tem o tamanho exato do papel. O conteúdo vai entrando nas duas colunas;
+   quando não cabe mais, continua numa folha nova (com o mesmo cabeçalho e rodapé). */
+const overflows = cols => cols.scrollWidth > cols.clientWidth + 2;
+const isSpacer = n => n.nodeType === 1 && n.tagName === "P" && !n.textContent.replace(/\u00a0/g, "").trim() && !n.querySelector("img") && !n.style.borderBottom;
+function paginate(container, chunks, {head, foot, R}){
+  const pg = PAGE[R.page];
+  // as folhas são montadas num espaço invisível (mas com tamanho de verdade) e só depois vão para a prévia,
+  // assim a medição funciona mesmo com a prévia escondida (modo "Escrever")
+  const stage = document.createElement("div");
+  stage.className = "sheets measuring"; stage.setAttribute("aria-hidden", "true");
+  document.body.appendChild(stage);
+  const sheets = [];
+  const newSheet = page => {
+    const el = document.createElement("div");
+    el.className = "paper"; el.dataset.page = page;
+    el.style.width = pg.w + "pt"; el.style.height = pg.h + "pt";
+    el.innerHTML = `<div class="sheet-head">${head}</div><div class="cols${R.sep ? " sep" : ""}"></div><div class="sheet-foot">${foot}</div>`;
+    stage.appendChild(el); sheets.push(el);
+    return el.querySelector(".cols");
+  };
+  chunks.forEach((html, page) => {
+    const tmp = document.createElement("div"); tmp.innerHTML = html;
+    const nodes = [...tmp.childNodes].filter(n => n.nodeType === 1);
+    let cols = newSheet(page);
+    // caminho rápido: tudo cabe numa folha
+    nodes.forEach(n => cols.appendChild(n));
+    if(!overflows(cols)) return;
+    cols.innerHTML = "";
+    for(const n of nodes){
+      if(!cols.childElementCount && isSpacer(n)) continue;          // folha nova não começa com linha vazia
+      cols.appendChild(n);
+      if(overflows(cols) && cols.childElementCount > 1){
+        cols.removeChild(n);
+        while(cols.lastElementChild && isSpacer(cols.lastElementChild)) cols.lastElementChild.remove();
+        cols = newSheet(page);
+        if(!isSpacer(n)) cols.appendChild(n);
+      }
+    }
+  });
+  sheets.forEach((el, i) => {
+    el.title = `Folha ${i + 1}`;
+    el.querySelectorAll(".pg").forEach(x => x.textContent = i + 1);
+  });
+  container.replaceChildren(...sheets);
+  stage.remove();
+  return sheets.length;
 }
 
+// Quando uma fonte termina de carregar, o texto muda de tamanho: a prévia é refeita.
+let redrawPreview = null;
+document.fonts?.addEventListener?.("loadingdone", () => redrawPreview?.());
 
 export async function editorView(id, startPage=0){
   const nb = await store.getNotebook(id);
@@ -127,7 +173,7 @@ export async function editorView(id, startPage=0){
     </section>
     <section class="preview-wrap" aria-label="Pré-visualização">
       <div class="paper-scroll"><div class="sheets" id="sheets"></div></div>
-      <p class="help" id="credit"></p>
+      <p class="help"><span id="sheet-count"></span> · <span id="credit"></span></p>
     </section>
   </div>`;
 
@@ -210,21 +256,17 @@ export async function editorView(id, startPage=0){
     return form ? patternBlob(picked(form,"pat")||"dots", colors) : null;
   };
   const markActive = () => {
-    document.querySelectorAll("#sheets .paper").forEach((el,i)=>el.classList.toggle("active", i===app.editor.active));
+    document.querySelectorAll("#sheets .paper").forEach(el => el.classList.toggle("active", +el.dataset.page === app.editor.active));
   };
   const render = () => {
+    if(!document.body.contains(text)) return;   // saiu do editor
     const d = current(), R = tplFor(d);
     setTemplate(R);
     const I = infoOf(d);
     const h = app.editor.html;
     h.head = htmlOf(headModel(I)); h.body = htmlOf(bodyModel(parse(notebookText(d)), I)); h.foot = htmlOf(footModel(I));
-    const chunks = h.body.split("<!--PB-->");
-    $("#sheets").innerHTML = chunks.map((b,i)=>`<div class="paper" data-i="${i}" title="Página ${i+1}" style="width:${PAGE[R.page].w}pt">
-      <div>${h.head}</div><div class="cols${R.sep?" sep":""}">${b}</div><div>${h.foot}</div></div>`).join("");
-    document.querySelectorAll("#sheets .paper").forEach((el,i)=>{
-      el.querySelectorAll(".pg").forEach(x=>x.textContent = i+1);
-      fillColumns(el.querySelector(".cols"), PAGE[R.page].h - 160);
-    });
+    const n = paginate($("#sheets"), h.body.split("<!--PB-->"), {head:h.head, foot:h.foot, R});
+    $("#sheet-count").textContent = `${n} ${n===1 ? "folha" : "folhas"}`;
     markActive();
     $("#credit").textContent = `Modelo ${R.name}: ${R.desc.toLowerCase()}. Papel ${R.page==="a4"?"A4":"Carta"}.`;
     $("#tpls").innerHTML = TEMPLATES.map(t=>`<button type="button" class="tpl" data-id="${t.id}" aria-pressed="${t.id===R.id}">
@@ -238,8 +280,10 @@ export async function editorView(id, startPage=0){
   const schedule = () => { $("#saved").textContent = "Salvando..."; clearTimeout(app.editor.timer); app.editor.timer = setTimeout(persist, 600); };
   app.editor.flush = persist;
 
-  for(const k in F) F[k].addEventListener("input", ()=>{ render(); schedule(); });
-  text.addEventListener("input", ()=>{ app.editor.pages[app.editor.active].text = text.value; render(); schedule(); drawCovers(); });
+  let renderTimer = null;
+  const renderSoon = () => { clearTimeout(renderTimer); renderTimer = setTimeout(render, 120); };
+  for(const k in F) F[k].addEventListener("input", ()=>{ renderSoon(); schedule(); });
+  text.addEventListener("input", ()=>{ app.editor.pages[app.editor.active].text = text.value; renderSoon(); schedule(); drawCovers(); });
   /* imagens no meio do texto */
   const addPicture = async file => {
     try{
@@ -326,7 +370,7 @@ export async function editorView(id, startPage=0){
       }
     }
   });
-  $("#sheets").addEventListener("click", e=>{ const p = e.target.closest(".paper"); if(p) selectPage(+p.dataset.i); });
+  $("#sheets").addEventListener("click", e=>{ const p = e.target.closest(".paper"); if(p) selectPage(+p.dataset.page); });
   F.lesson.addEventListener("change", ()=>crumbs([{label:"Início", href:"#/"}, ...(folder ? [{label:folder.name, href:`#/pasta/${folder.id}`}] : []), {label:nbTitle(current())}]));
   $(".paper-size").addEventListener("click", e=>{
     const b = e.target.closest("[data-page]"); if(!b) return;
@@ -397,7 +441,14 @@ export async function editorView(id, startPage=0){
   const WHERE = [["nova","Numa página nova"],["fim","No fim desta página"],["cursor","Onde está o cursor"]];
   const DEFAULT_WHERE = {resumo:"nova", organizar:"fim", revisao:"nova", explicar:"cursor"};
   // Estado do painel (sobrevive quando o painel é redesenhado)
-  let ai = {task:"resumo", where:"nova", abort:null, result:"", resultTask:"", extra:"", src:{organizar:"", explicar:""}, status:"", statusErr:false};
+  let ai = {task:"resumo", where:"nova", abort:null, result:"", resultTask:"", extra:"", src:{organizar:"", explicar:""}, status:"", statusErr:false, from:null, to:null};
+  /** Intervalo de páginas usado por Resumir e Perguntas de revisão (padrão: a página aberta). */
+  const range = () => {
+    const last = app.editor.pages.length - 1;
+    let from = ai.from ?? app.editor.active, to = ai.to ?? app.editor.active;
+    from = Math.min(Math.max(0, from), last); to = Math.min(Math.max(from, to), last);
+    return {from, to};
+  };
   const setStatus = (msg, err=false) => { ai.status = msg; ai.statusErr = err; const st = $("#ai-status"); if(st){ st.textContent = msg; st.classList.toggle("err", err); } };
   const drawAI = () => {
     const box = $("#ai-box");
@@ -419,7 +470,14 @@ export async function editorView(id, startPage=0){
       ${t.needsText
         ? `<label class="field">${ai.task==="explicar" ? "Termo ou trecho" : "Texto para organizar"}
             <textarea id="ai-src" rows="${ai.task==="explicar"?3:8}" placeholder="${ai.task==="explicar" ? "Ex.: mitocôndria" : "Cole aqui o texto da aula, de um PDF ou de uma transcrição"}">${esc(ai.src[ai.task] || "")}</textarea></label>`
-        : `<p class="ai-from">${ic("file-text")} Vai usar o texto da <b>Página ${app.editor.active+1}</b>.</p>`}
+        : app.editor.pages.length > 1 ? (() => { const {from, to} = range(), n = app.editor.pages.length;
+            const opts = (sel, min=0) => Array.from({length:n}, (_,i) => i < min ? "" : `<option value="${i}" ${i===sel?"selected":""}>Página ${i+1}</option>`).join("");
+            return `<div class="field"><span>Quais páginas usar</span>
+              <div class="row ai-range"><label>De <select id="ai-from">${opts(from)}</select></label>
+                <label>até <select id="ai-to">${opts(to, from)}</select></label>
+                <button type="button" class="btn sm" id="ai-all">Todas</button>
+                <small>${to-from+1} ${to===from ? "página" : "páginas"}</small></div></div>`; })()
+          : `<p class="ai-from">${ic("file-text")} Vai usar o texto da <b>Página 1</b>.</p>`}
       <label class="field">Pedido extra (opcional)
         <input type="text" id="ai-extra" value="${esc(ai.extra)}" placeholder="Ex.: mais curto, foco nas datas, linguagem bem simples"></label>
       <div class="field"><span>Onde colocar o resultado</span>
@@ -443,6 +501,10 @@ export async function editorView(id, startPage=0){
       ai.task = b.dataset.task; ai.where = DEFAULT_WHERE[ai.task]; drawAI();
     };
     const srcEl = $("#ai-src"); if(srcEl) srcEl.oninput = e => { ai.src[ai.task] = e.target.value; };
+    const fromEl = $("#ai-from"), toEl = $("#ai-to"), allEl = $("#ai-all");
+    if(fromEl) fromEl.onchange = e => { ai.from = +e.target.value; ai.to = Math.max(ai.from, range().to); drawAI(); };
+    if(toEl) toEl.onchange = e => { ai.to = +e.target.value; ai.from = range().from; drawAI(); };
+    if(allEl) allEl.onclick = () => { ai.from = 0; ai.to = app.editor.pages.length - 1; drawAI(); };
     $("#ai-extra").oninput = e => { ai.extra = e.target.value; };
     $("#ai-where").onclick = e => { const b = e.target.closest("[data-v]"); if(!b) return; ai.where = b.dataset.v;
       $("#ai-where").querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b)); };
@@ -454,8 +516,10 @@ export async function editorView(id, startPage=0){
   const generate = async () => {
     if(ai.abort) return;
     const t = TASKS[ai.task];
-    const src = t.needsText ? (ai.src[ai.task] || "").trim() : app.editor.pages[app.editor.active].text.trim();
-    if(!src){ setStatus(t.needsText ? "Escreva ou cole um texto primeiro." : "Esta página está vazia. Escreva algo antes de pedir à IA.", true); return; }
+    const {from, to} = range();
+    const src = t.needsText ? (ai.src[ai.task] || "").trim()
+      : app.editor.pages.slice(from, to + 1).map(p => p.text.split("\n").filter(l => !/^\s*\[(capa|imagem):/.test(l)).join("\n").trim()).filter(Boolean).join("\n\n");
+    if(!src){ setStatus(t.needsText ? "Escreva ou cole um texto primeiro." : (from === to ? "Esta página está vazia." : "Essas páginas estão vazias.") + " Escreva algo antes de pedir à IA.", true); return; }
     ai.abort = new AbortController(); ai.result = ""; ai.resultTask = ai.task;
     setStatus("Pensando…"); drawAI();
     let frame = 0, partial = "";
@@ -497,6 +561,8 @@ export async function editorView(id, startPage=0){
   drawPages();
   render();
   drawCovers();
+  redrawPreview = renderSoon;
+  document.fonts?.ready?.then(() => renderSoon());
   if(startPage) selectPage(startPage);
   app.editor.focusFind = q => {             // vindo da busca: seleciona a palavra no texto
     const i = norm(text.value).indexOf(norm(q)); if(i < 0) return;

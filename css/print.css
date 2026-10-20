@@ -1,13 +1,13 @@
-/* PDF: imprime só as folhas */
+/* PDF: imprime só as folhas, uma por página do papel */
 @media print{ /* carregado só na impressão (PDF) */
   body{background:#fff}
-  .topbar,.site-foot,.editor > .panel,.actions,.help,.toast,dialog{display:none !important}
+  .topbar,.site-foot,.editor-bar,.editor > .panel,.actions,.help,.toast,dialog{display:none !important}
   #view{padding:0;max-width:none}
-  .editor{display:block}
+  .editor,.editor.mode-write,.editor.mode-preview{display:block}
+  .editor .preview-wrap{display:block !important}
   .paper-scroll{overflow:visible;padding:0}
   .sheets{display:block}
-  .sheets .paper{box-shadow:none;outline:0;margin:0 auto;padding:36pt 72pt;break-after:page;width:auto !important}
+  .sheets .paper{box-shadow:none;outline:0;margin:0;break-after:page;break-inside:avoid}
   .sheets .paper:last-child{break-after:auto}
-  .paper .cols{height:auto !important;column-fill:balance;overflow:visible}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }

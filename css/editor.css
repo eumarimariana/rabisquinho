@@ -28,7 +28,9 @@ summary{cursor:pointer;font-weight:700;color:var(--teal)}
 .saved{font-size:13px;color:var(--muted);margin-left:auto}
 .paper-scroll{overflow-x:auto;padding:4px 0 12px}
 /* A folha é sempre branca, como no Word e no Google Docs */
-.paper{margin:0 auto;background:#ffffff;color:#000000;padding:36pt 72pt;box-shadow:0 1px 3px rgba(0,0,0,.12),0 8px 24px rgba(0,0,0,.08);display:flex;flex-direction:column;gap:12pt}
+.paper{margin:0 auto;background:#ffffff;color:#000000;padding:36pt 72pt;box-shadow:0 1px 3px rgba(0,0,0,.12),0 8px 24px rgba(0,0,0,.08);display:flex;flex-direction:column;gap:12pt;overflow:hidden;flex:none}
+.paper .sheet-head,.paper .sheet-foot{flex:none}
+.paper .cols{flex:1;min-height:0}
 .paper .cols{column-count:2;column-gap:36pt;column-fill:auto;overflow:hidden}
 .paper .cols.sep{column-rule:0.75pt solid #9a9a9a}
 .paper .cols table{break-inside:avoid}
@@ -138,3 +140,8 @@ summary{cursor:pointer;font-weight:700;color:var(--teal)}
 .ai-out-title{margin:0;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--coral)}
 .ai-out-title svg.lucide{width:14px;height:14px}
 #ai-box input[type=text]{font-weight:400}
+.sheets.measuring{position:absolute;left:-100000px;top:0;visibility:hidden;pointer-events:none}
+.ai-range{font-size:13px;font-weight:700;color:var(--fg)}
+.ai-range label{display:inline-flex;align-items:center;gap:6px}
+.ai-range select{width:auto;font-weight:400}
+.ai-range small{color:var(--muted);font-weight:400}
