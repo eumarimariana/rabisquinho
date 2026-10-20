@@ -23,7 +23,7 @@ export function htmlOf(model){
       const total = x.widths.reduce((a,b)=>a+b,0);
       return `<table ${x.keep ? "data-keep " : ""}style="width:${total}pt;border-collapse:collapse;table-layout:fixed;${x.keep ? "break-after:avoid;" : ""}">`+
         `<colgroup>${x.widths.map(w=>`<col style="width:${w}pt">`).join("")}</colgroup>`+
-        x.rows.map(r=>`<tr>${r.map(c=>`<td style="padding:3pt 5pt;vertical-align:${c.valign==="center"?"middle":"top"};${c.bg?`background-color:${c.bg};`:""}${bdH(c.bd)}">${htmlOf(c.paras)}</td>`).join("")}</tr>`).join("")+`</table>`;
+        x.rows.map(r=>`<tr>${r.map(c=>`<td style="padding:3pt 5pt;overflow-wrap:anywhere;vertical-align:${c.valign==="center"?"middle":"top"};${c.bg?`background-color:${c.bg};`:""}${bdH(c.bd)}">${htmlOf(c.paras)}</td>`).join("")}</tr>`).join("")+`</table>`;
     }
     const al = {both:"justify",center:"center",right:"right"}[x.align]||"left";
     let st = `margin:0;line-height:1.15;text-align:${al};${bdH(x.bd)}${x.shade?`background-color:${x.shade};padding:3pt 5pt;`:""}${x.bd?.left?"padding-left:7pt;":""}`;

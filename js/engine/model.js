@@ -75,6 +75,31 @@ function subTitle(b, CW){
   ]], {keep:true});
 }
 
+/* ---------- larguras das colunas da tabela ----------
+   Cada coluna precisa caber a sua maior palavra (senão ela vaza para a coluna vizinha);
+   o espaço que sobra vai para as colunas com mais texto. */
+const plain = s => String(s||"").replace(/\*\*|==|\+\+|__|\{\{|\}\}|\*/g, "");
+function tableWidths(rows, CW){
+  const n = Math.max(...rows.map(r=>r.length));
+  const PAD = 12, sz = R.bodySz;
+  const charW = (bold) => sz * (bold ? 0.62 : 0.55);          // largura média de uma letra, em pt
+  const minW = [], want = [];
+  for(let c=0; c<n; c++){
+    let longest = 0, total = 0;
+    rows.forEach((r, ri) => {
+      const t = plain(r[c]), bold = ri===0 || c===0;
+      t.split(/\s+/).forEach(w => longest = Math.max(longest, w.length * charW(bold)));
+      total += t.length * charW(bold);
+    });
+    minW[c] = Math.min(longest + PAD, CW * 0.6);
+    want[c] = Math.max(minW[c], total / rows.length + PAD);
+  }
+  const sumMin = minW.reduce((a,b)=>a+b, 0);
+  if(sumMin >= CW) return minW.map(w => w * CW / sumMin);   // nem as palavras cabem: divide na proporção
+  const extra = want.map((w,i) => w - minW[i]), sumExtra = extra.reduce((a,b)=>a+b, 0) || 1;
+  return minW.map((w,i) => w + (CW - sumMin) * extra[i] / sumExtra);
+}
+
 export function bodyModel(blocks, I){
   const CW = colW(), out = [];
   if(R.foot !== "line" && I.source) out.push(P(run(`${dot()} ${I.source.toUpperCase()} ${dot()}`, base({b:true,i:true,color:R.src,sz:R.bodySz-1}))), empty());
@@ -125,8 +150,7 @@ export function bodyModel(blocks, I){
         out.push(P([run(`Tabela ${b.n}  ${dot()}  `, base({b:true, color:R.key})), ...inl(b.text, base({i:true}))], {align:"center", after:2, keepNext:true}));
         break;
       case "table": {
-        const n = Math.max(...b.rows.map(r=>r.length));
-        const ws = n===2 ? [CW*0.36, CW*0.64] : Array(n).fill(CW/n);
+        const ws = tableWidths(b.rows, CW);
         out.push(TB(ws, b.rows.map((r,ri)=>ws.map((w,ci)=>{
           const head = ri===0, first = ci===0 && !head;
           const st = head ? base({b:true,color:R.thInk}) : first ? base({b:true,color:R.tfInk}) : base({sz:R.bodySz-0.5});
@@ -138,7 +162,7 @@ export function bodyModel(blocks, I){
       case "list":
         for(const it of b.items)
           out.push(P(inl(it.text, it.key ? base({b:true,color:R.key}) : base({sz: it.level===2 ? R.bodySz-1 : R.bodySz})),
-            {list:{kind:it.kind, level:it.level, gid:it.gid}, align:"both"}));
+            {list:{kind:it.kind, level:it.level, gid:it.gid}, align: it.key ? "left" : "both"}));
         break;
       default: out.push(P(inl(b.text, base()), {align:"both", firstLine:R.indent||0}));
     }

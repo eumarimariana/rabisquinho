@@ -72,7 +72,7 @@ function paginate(container, chunks, {head, foot, R}){
   const sheets = [];
   const newSheet = page => {
     const el = document.createElement("div");
-    el.className = "paper"; el.dataset.page = page;
+    el.className = "paper"; el.dataset.page = page; el.lang = "pt-BR";   // hifenização em português
     el.style.width = pg.w + "pt"; el.style.height = pg.h + "pt";
     el.innerHTML = `<div class="sheet-head">${head}</div><div class="cols${R.sep ? " sep" : ""}"></div><div class="sheet-foot">${foot}</div>`;
     stage.appendChild(el); sheets.push(el);

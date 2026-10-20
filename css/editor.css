@@ -146,3 +146,5 @@ summary{cursor:pointer;font-weight:700;color:var(--teal)}
 .ai-range select{width:auto;font-weight:400}
 .ai-range small{color:var(--muted);font-weight:400}
 .paper .keep-group{break-inside:avoid}
+.paper .cols{hyphens:auto;-webkit-hyphens:auto}
+.paper td{hyphens:manual}
