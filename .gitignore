@@ -8,6 +8,7 @@ Thumbs.db
 *.swp
 
 # Backups exportados pelo site (dados pessoais)
+rabisquinho-backup-*.json
 cadernim-backup-*.json
 notas-fofas-backup-*.json
 

@@ -1,4 +1,4 @@
-// Modelos de caderno do Cadernim (criação própria).
+// Modelos de caderno do Rabisquinho (criação própria).
 //
 // Cada modelo junta uma paleta (cores) e um estilo (jeito do cabeçalho, dos títulos e do rodapé).
 // As opções de estilo estão explicadas em js/engine/model.js.

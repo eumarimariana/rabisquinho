@@ -1,6 +1,6 @@
 // Preferências de aparência do início (ficam neste navegador).
 
-const KEY = "cadernim-aparencia";
+const KEY = "cadernim-aparencia";   // nome antigo do site: mantido para não perder as preferências
 
 /** Cores do site: cada uma troca a cor principal (botões, títulos) e a de destaque. */
 export const ACCENTS = [

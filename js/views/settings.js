@@ -10,7 +10,7 @@ export async function settingsView(){
   const secName = id => SECTIONS.find(s=>s.id===id)?.name || id;
   view.innerHTML = `
   <div class="settings">
-    <div class="hello"><div><h1>Configurações</h1><p>Deixe o Cadernim com a sua cara e ligue o assistente de IA.</p></div></div>
+    <div class="hello"><div><h1>Configurações</h1><p>Deixe o Rabisquinho com a sua cara e ligue o assistente de IA.</p></div></div>
 
     <section class="panel" aria-labelledby="t-ap">
       <h2 id="t-ap">${ic("palette")}Aparência</h2>
@@ -68,7 +68,7 @@ export async function settingsView(){
         <button type="button" class="btn danger" id="ai-del" ${(ai.provider==="openrouter"?ai.orKey:ai.apiKey)?"":"hidden"}>${ic("trash-2")}Apagar chave</button>
         <span class="status-msg" id="ai-status" role="status">${(ai.provider==="openrouter"?ai.orKey:ai.apiKey) ? "Chave salva neste navegador." : ""}</span>
       </div>
-      <p class="help">${ic("shield")} A chave fica guardada só neste navegador e vai direto para o provedor (Anthropic ou OpenRouter), sem passar por nenhum outro servidor. Não use o Cadernim com a sua chave em computadores de outras pessoas.</p>
+      <p class="help">${ic("shield")} A chave fica guardada só neste navegador e vai direto para o provedor (Anthropic ou OpenRouter), sem passar por nenhum outro servidor. Não use o Rabisquinho com a sua chave em computadores de outras pessoas.</p>
     </section>
   </div>`;
   paint(view);

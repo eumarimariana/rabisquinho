@@ -4,7 +4,7 @@
 // As chaves ficam só neste navegador (localStorage) e vão direto para o provedor escolhido.
 
 const SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.131.0/+esm";
-const KEY = "cadernim-ia";
+const KEY = "cadernim-ia";   // nome antigo do site: mantido para não perder a chave já salva
 
 export const MODELS = [
   {id:"claude-opus-5-5",   name:"Claude Opus 5.5",   desc:"Melhor qualidade (padrão)"},
@@ -17,7 +17,7 @@ export const PROVIDERS = [
   {id:"openrouter", name:"OpenRouter",         keyHint:"sk-or-...",  keyUrl:"https://openrouter.ai/settings/keys"},
 ];
 const OR_URL = "https://openrouter.ai/api/v1";
-/** No OpenRouter o Cadernim usa só modelos gratuitos. Atalhos (a lista completa vem da API deles). */
+/** No OpenRouter o Rabisquinho usa só modelos gratuitos. Atalhos (a lista completa vem da API deles). */
 export const OR_FREE_ROUTER = "openrouter/free";
 export const OR_QUICK = [
   {id:OR_FREE_ROUTER,                          name:"Automático grátis (o OpenRouter escolhe)"},
@@ -87,8 +87,8 @@ function friendly(err, Anthropic){
   return new AIError("desconhecido", "Algo deu errado com a IA: " + (err?.message || err));
 }
 
-/* ---------- o que a IA sabe sobre o Cadernim ---------- */
-const SYNTAX = `Você escreve anotações de estudo para o Cadernim, um caderno digital. O texto que você devolve é lido por um programa que transforma cada linha em um pedaço do caderno. Use SOMENTE esta sintaxe, uma coisa por linha:
+/* ---------- o que a IA sabe sobre o Rabisquinho ---------- */
+const SYNTAX = `Você escreve anotações de estudo para o Rabisquinho, um caderno digital. O texto que você devolve é lido por um programa que transforma cada linha em um pedaço do caderno. Use SOMENTE esta sintaxe, uma coisa por linha:
 
 # Título            → tópico principal (numerado sozinho: 1.0, 2.0…)
 ## Subtítulo        → subtópico (1.1, 1.2…)
@@ -201,7 +201,7 @@ async function runOpenRouter(prompt, {onText, signal, maxTokens}){
   let res;
   try{
     res = await fetch(OR_URL + "/chat/completions", {method:"POST", signal,
-      headers:{"Authorization":`Bearer ${orKey}`, "Content-Type":"application/json", "HTTP-Referer":location.origin, "X-Title":"Cadernim"},
+      headers:{"Authorization":`Bearer ${orKey}`, "Content-Type":"application/json", "HTTP-Referer":location.origin, "X-Title":"Rabisquinho"},
       body: JSON.stringify({model:orModel, stream:true, max_tokens:maxTokens,
         messages:[{role:"system", content:SYNTAX}, {role:"user", content:prompt}]})});
   }catch(err){

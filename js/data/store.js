@@ -118,13 +118,13 @@ const dataURLToBlob = async u => (await fetch(u)).blob();
 
 /* ---------- backup ---------- */
 export async function exportAll(){
-  return {app:"cadernim", version:1, exportedAt:new Date().toISOString(),
+  return {app:"rabisquinho", version:1, exportedAt:new Date().toISOString(),
     folders: await listFolders(), notebooks: await listNotebooks(),
     images: await Promise.all((await tx("images", "readonly", s => req2p(s.getAll()))).map(async im => ({...im, blob:undefined, data: await blobToDataURL(im.blob)})))};
 }
 export async function importAll(data){
-  if(!data || !["cadernim","notas-fofas"].includes(data.app) || !Array.isArray(data.folders) || !Array.isArray(data.notebooks))
-    throw new Error("Esse arquivo não é um backup do Cadernim.");
+  if(!data || !["rabisquinho","cadernim","notas-fofas"].includes(data.app) || !Array.isArray(data.folders) || !Array.isArray(data.notebooks))
+    throw new Error("Esse arquivo não é um backup do Rabisquinho.");
   await tx("folders", "readwrite", s => data.folders.forEach(f => s.put(f)));
   await tx("notebooks", "readwrite", s => data.notebooks.forEach(n => s.put(n)));
   const imgs = await Promise.all((data.images||[]).map(async im => { const {data:d, ...rest} = im; return {...rest, blob: await dataURLToBlob(d)}; }));

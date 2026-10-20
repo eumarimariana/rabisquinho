@@ -27,7 +27,7 @@ async function router(){
   }catch(e){
     console.error(e);
     view.innerHTML = e?.message==="blocked"
-      ? `<div class="empty"><b>O Cadernim foi atualizado.</b><br>Feche as outras abas do site e recarregue esta página.</div>`
+      ? `<div class="empty"><b>O Rabisquinho foi atualizado.</b><br>Feche as outras abas do site e recarregue esta página.</div>`
       : `<div class="empty"><b>Não deu para abrir seus cadernos.</b><br>O navegador pode estar bloqueando o armazenamento (por exemplo, em uma janela anônima). Tente em uma janela normal.</div>`;
   }
   paint(view); paint($("#crumbs"));
@@ -42,7 +42,7 @@ window.addEventListener("beforeunload", ()=>{ if(app.editor?.timer) app.editor.f
 /* ---------- backup ---------- */
 $("#backup-out").onclick = async () => {
   const data = await store.exportAll();
-  saveFile(new Blob([JSON.stringify(data, null, 1)], {type:"application/json"}), `cadernim-backup-${new Date().toISOString().slice(0,10)}.json`);
+  saveFile(new Blob([JSON.stringify(data, null, 1)], {type:"application/json"}), `rabisquinho-backup-${new Date().toISOString().slice(0,10)}.json`);
   toast("Backup baixado!");
 };
 $("#backup-in").onchange = async e => {
