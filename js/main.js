@@ -1,4 +1,5 @@
 // Início do site: roteador (#/...), backup, caixa de busca, favoritos e caderno de exemplo.
+import { inject } from "https://cdn.jsdelivr.net/npm/@vercel/analytics@2/+esm";
 import { SAMPLE } from "./data/sample.js";
 import * as store from "./data/store.js";
 import { $, view, paint, toast, saveFile } from "./ui/dom.js";
@@ -12,6 +13,9 @@ import { tagView } from "./views/tag.js";
 import { settingsView } from "./views/settings.js";
 import { applyPrefs } from "./ui/prefs.js";
 import { openTour, maybeShowTour } from "./ui/tour.js";
+
+// Initialize Vercel Web Analytics
+inject();
 
 async function router(){
   if(app.editor?.timer){ await app.editor.flush(); }
