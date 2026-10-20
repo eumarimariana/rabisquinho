@@ -125,6 +125,16 @@ function paginate(container, chunks, {head, foot, R}){
   return sheets.length;
 }
 
+// Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y no editor. Nos outros campos (busca, etiquetas...) o navegador cuida sozinho.
+document.addEventListener("keydown", e => {
+  if(!app.editor?.undo || !(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const t = e.target, typing = t.matches?.("input, select, [contenteditable]") || (t.tagName === "TEXTAREA" && t.id !== "f-text");
+  if(typing || document.querySelector("dialog[open]")) return;
+  const k = e.key.toLowerCase();
+  if(k === "z" && !e.shiftKey){ e.preventDefault(); app.editor.undo(); }
+  else if((k === "z" && e.shiftKey) || k === "y"){ e.preventDefault(); app.editor.redo(); }
+});
+
 // Quando uma fonte termina de carregar, o texto muda de tamanho: a prévia é refeita.
 let redrawPreview = null;
 document.fonts?.addEventListener?.("loadingdone", () => redrawPreview?.());
@@ -147,6 +157,8 @@ export async function editorView(id, startPage=0){
       <button type="button" class="seg" data-mode="preview" aria-pressed="${mode==="preview"}">${ic("eye")}Prévia</button>
     </div>
     <div class="actions">
+      <button class="btn icon-btn" id="undo" type="button" title="Desfazer (Ctrl+Z)" aria-label="Desfazer" disabled>${ic("undo-2")}</button>
+      <button class="btn icon-btn" id="redo" type="button" title="Refazer (Ctrl+Shift+Z)" aria-label="Refazer" disabled>${ic("redo-2")}</button>
       <button class="btn primary" id="dl-docx" type="button">${ic("file-down")}Baixar .docx</button>
       <button class="btn" id="dl-pdf" type="button">${ic("file-text")}PDF</button>
       <button class="btn icon-btn" id="copy-all" type="button" title="Copiar texto formatado" aria-label="Copiar texto formatado">${ic("copy")}</button>
@@ -268,7 +280,7 @@ export async function editorView(id, startPage=0){
     await store.saveImage({id, notebookId:nb.id, blob:made.blob, type:made.type});
     images[id] = {id, blob:made.blob, type:made.type, url:URL.createObjectURL(made.blob)};
     const lines = app.editor.pages[app.editor.active].text.split("\n");
-    if(c.cover){ lines[c.line-1] = coverLine(id); store.deleteImage(c.cover); }
+    if(c.cover) lines[c.line-1] = coverLine(id);   // a imagem antiga fica guardada: o "Desfazer" pode trazer de volta
     else lines.splice(c.line, 0, coverLine(id));
     app.editor.pages[app.editor.active].text = text.value = lines.join("\n");
     render(); drawCovers(); schedule(); toast("Capa colocada!");
@@ -276,7 +288,7 @@ export async function editorView(id, startPage=0){
   const removeCover = k => {
     const c = chapters()[k]; if(!c?.cover) return;
     const lines = app.editor.pages[app.editor.active].text.split("\n");
-    lines.splice(c.line-1, 1); store.deleteImage(c.cover);
+    lines.splice(c.line-1, 1);
     app.editor.pages[app.editor.active].text = text.value = lines.join("\n");
     render(); drawCovers(); schedule(); toast("Capa retirada.");
   };
@@ -311,7 +323,7 @@ export async function editorView(id, startPage=0){
     app.editor.nb = await store.saveNotebook(current());
     $("#saved").textContent = "Salvo";
   };
-  const schedule = () => { $("#saved").textContent = "Salvando..."; clearTimeout(app.editor.timer); app.editor.timer = setTimeout(persist, 600); };
+  const schedule = () => { $("#saved").textContent = "Salvando..."; clearTimeout(app.editor.timer); app.editor.timer = setTimeout(persist, 600); recordSoon(); };
   app.editor.flush = persist;
 
   let renderTimer = null;
@@ -592,9 +604,62 @@ export async function editorView(id, startPage=0){
     toast("Pronto! O texto da IA entrou no caderno.");
   };
 
+  /* ---------- desfazer / refazer ----------
+     Cada mudança no caderno (texto, páginas, modelo, cor, papel, informações, etiquetas, capas, IA)
+     vira um passo do histórico. Na digitação, cada pausa curta é um passo. */
+  const hist = {stack:[], i:-1, applying:false, timer:null};
+  const snap = () => ({
+    key: JSON.stringify({pages:app.editor.pages, F:Object.fromEntries(Object.keys(F).map(k=>[k, F[k].value])),
+      tpl:app.editor.nb.tpl, color:app.editor.nb.color, page:app.editor.nb.page, tags:app.editor.nb.tags}),
+    active: app.editor.active,
+  });
+  const updateUndo = () => { $("#undo").disabled = hist.i <= 0; $("#redo").disabled = hist.i >= hist.stack.length - 1; };
+  const record = () => {
+    clearTimeout(hist.timer); hist.timer = null;
+    const s = snap();
+    if(hist.stack[hist.i]?.key === s.key) return;
+    hist.stack = hist.stack.slice(0, hist.i + 1); hist.stack.push(s);
+    if(hist.stack.length > 150) hist.stack.shift();
+    hist.i = hist.stack.length - 1; updateUndo();
+  };
+  function recordSoon(){ if(hist.applying) return; clearTimeout(hist.timer); hist.timer = setTimeout(record, 500); }
+  const syncColor = () => {
+    const c = app.editor.nb.color || colorOf(app.editor.nb), root = $("#nb-color"); let found = false;
+    root.querySelectorAll('[data-pick="color"]').forEach(x => { const on = x.tagName !== "LABEL" && x.dataset.value === c; if(on) found = true; x.setAttribute("aria-pressed", on); });
+    const lab = root.querySelector("label.swatch");
+    if(!found && lab){ lab.dataset.value = c; lab.style.background = c; lab.setAttribute("aria-pressed", "true"); }
+  };
+  const apply = (s, active) => {
+    hist.applying = true;
+    const d = JSON.parse(s.key);
+    app.editor.pages = d.pages.map(p => ({...p}));
+    for(const k in F) F[k].value = d.F[k] ?? "";
+    Object.assign(app.editor.nb, {tpl:d.tpl, color:d.color, page:d.page, tags:[...(d.tags||[])]});
+    app.editor.active = Math.min(Math.max(0, active), app.editor.pages.length - 1);
+    text.value = app.editor.pages[app.editor.active].text;
+    drawPages(); drawTags(); syncColor();
+    document.querySelectorAll(".paper-size .seg").forEach(x => x.setAttribute("aria-pressed", x.dataset.page === (d.page === "letter" ? "letter" : "a4")));
+    render(); drawCovers();
+    $("#saved").textContent = "Salvando..."; clearTimeout(app.editor.timer); app.editor.timer = setTimeout(persist, 300);
+    hist.applying = false; updateUndo();
+  };
+  const undo = () => {
+    if(hist.timer) record();                       // guarda o que acabou de ser digitado antes de voltar
+    if(hist.i <= 0) return;
+    const where = hist.stack[hist.i].active;       // volta na página onde a mudança aconteceu
+    hist.i--; apply(hist.stack[hist.i], where); toast("Desfeito.");
+  };
+  const redo = () => {
+    if(hist.i >= hist.stack.length - 1) return;
+    hist.i++; apply(hist.stack[hist.i], hist.stack[hist.i].active); toast("Refeito.");
+  };
+  $("#undo").onclick = undo; $("#redo").onclick = redo;
+  app.editor.undo = undo; app.editor.redo = redo;
+
   drawPages();
   render();
   drawCovers();
+  record();                                        // estado inicial do histórico
   redrawPreview = renderSoon;
   document.fonts?.ready?.then(() => renderSoon());
   if(startPage) selectPage(startPage);
