@@ -2,7 +2,7 @@
 import { esc } from "../engine/index.js";
 import { $, view, ic, paint, toast, crumbs } from "../ui/dom.js";
 import { getPrefs, savePrefs, ACCENTS, DOODLES, SECTIONS } from "../ui/prefs.js";
-import { getSettings, saveSettings, MODELS, PROVIDERS, OR_QUICK, listOpenRouterModels, testKey } from "../ai/assistant.js";
+import { getSettings, saveSettings, MODELS, PROVIDERS, OR_QUICK, isFreeModel, listOpenRouterModels, testKey } from "../ai/assistant.js";
 
 export async function settingsView(){
   crumbs([{label:"Início", href:"#/"}, {label:"Configurações"}]);
@@ -47,16 +47,17 @@ export async function settingsView(){
 
       <div id="prov-openrouter" ${ai.provider==="openrouter"?"":"hidden"}>
         <ol class="steps">
-          <li>Entre em <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai</a>, coloque créditos na conta e crie uma chave.</li>
+          <li>Crie uma conta grátis em <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai</a> e crie uma chave. Não precisa colocar créditos.</li>
           <li>Cole a chave, escolha o modelo e clique em <b>Salvar e testar</b>.</li>
         </ol>
         <label class="field">Chave do OpenRouter
           <span class="key-row"><input type="password" id="or-key" autocomplete="off" spellcheck="false" placeholder="sk-or-..." value="${esc(ai.orKey)}">
           <button type="button" class="btn sm show-key" data-for="or-key">${ic("eye")}Mostrar</button></span></label>
-        <div class="field"><span>Modelo</span>
+        <p class="help">${ic("gift")} Aqui aparecem só os <b>modelos gratuitos</b>. Eles têm limite de pedidos por minuto e por dia, podem ser mais lentos e alguns guardam os textos enviados para melhorar os modelos. Evite mandar informações pessoais.</p>
+        <div class="field"><span>Modelo gratuito</span>
           <div class="row" id="or-quick">${OR_QUICK.map(m=>`<button type="button" class="seg" data-v="${m.id}" aria-pressed="${m.id===ai.orModel}">${m.name}</button>`).join("")}</div>
-          <label class="field">Ou procure qualquer modelo do OpenRouter
-            <input type="text" id="or-model" list="or-models" autocomplete="off" spellcheck="false" value="${esc(ai.orModel)}" placeholder="Ex.: anthropic/claude-sonnet-5.5"></label>
+          <label class="field">Ou procure outro modelo gratuito
+            <input type="text" id="or-model" list="or-models" autocomplete="off" spellcheck="false" value="${esc(ai.orModel)}" placeholder="Ex.: google/gemma-4-31b-it:free"></label>
           <datalist id="or-models"></datalist>
           <span class="help" id="or-count">Carregando a lista de modelos…</span>
         </div>
@@ -106,16 +107,21 @@ export async function settingsView(){
   const markQuick = id => $("#or-quick").querySelectorAll("[data-v]").forEach(x=>x.setAttribute("aria-pressed", x.dataset.v===id));
   $("#or-quick").addEventListener("click", e => { const b = e.target.closest("[data-v]"); if(!b) return;
     saveSettings({orModel:b.dataset.v}); $("#or-model").value = b.dataset.v; markQuick(b.dataset.v); });
-  $("#or-model").addEventListener("change", e => { const v = e.target.value.trim(); if(v){ saveSettings({orModel:v}); markQuick(v); } });
+  $("#or-model").addEventListener("change", e => {
+    const v = e.target.value.trim(); if(!v) return;
+    if(!isFreeModel(v)){ $("#or-count").textContent = "Esse modelo não é gratuito. Escolha um que termine com \":free\"."; return; }
+    saveSettings({orModel:v}); markQuick(v); });
   listOpenRouterModels().then(list => {
     $("#or-models").innerHTML = list.map(m=>`<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("");
-    $("#or-count").textContent = `${list.length} modelos disponíveis. Comece a digitar o nome (ex.: claude, gemini, llama).`;
+    $("#or-count").textContent = `${list.length} modelos gratuitos disponíveis agora. Comece a digitar o nome (ex.: gemma, nemotron).`;
+    // atalho que saiu da lista de grátis fica apagado
+    $("#or-quick").querySelectorAll("[data-v]").forEach(b => { if(b.dataset.v !== "openrouter/free" && !list.some(m=>m.id===b.dataset.v)) b.disabled = true; });
   }).catch(() => { const c = $("#or-count"); if(c) c.textContent = "Não deu para carregar a lista agora, mas você pode digitar o nome do modelo."; });
   $("#ai-save").onclick = async () => {
     const st = $("#ai-status"), isOR = prov()==="openrouter";
     const key = $(isOR ? "#or-key" : "#ai-key").value.trim();
     if(!key){ st.textContent = "Cole a chave antes de salvar."; return; }
-    if(isOR){ const m = $("#or-model").value.trim(); saveSettings({orKey:key, ...(m ? {orModel:m} : {})}); }
+    if(isOR){ const m = $("#or-model").value.trim(); saveSettings({orKey:key, ...(m && isFreeModel(m) ? {orModel:m} : {})}); }
     else saveSettings({apiKey:key});
     st.textContent = "Testando a chave…"; $("#ai-save").disabled = true; $("#ai-del").hidden = false;
     try{ await testKey(); st.textContent = "Tudo certo! A IA está pronta para usar nos cadernos."; toast("IA ativada!"); }

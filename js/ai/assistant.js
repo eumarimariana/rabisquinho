@@ -17,33 +17,41 @@ export const PROVIDERS = [
   {id:"openrouter", name:"OpenRouter",         keyHint:"sk-or-...",  keyUrl:"https://openrouter.ai/settings/keys"},
 ];
 const OR_URL = "https://openrouter.ai/api/v1";
-/** Atalhos de modelos no OpenRouter (a lista completa vem da API deles). */
+/** No OpenRouter o Cadernim usa só modelos gratuitos. Atalhos (a lista completa vem da API deles). */
+export const OR_FREE_ROUTER = "openrouter/free";
 export const OR_QUICK = [
-  {id:"anthropic/claude-opus-5.5",   name:"Claude Opus 5.5"},
-  {id:"anthropic/claude-sonnet-5.5", name:"Claude Sonnet 5.5"},
-  {id:"openrouter/auto",             name:"Automático (o OpenRouter escolhe)"},
+  {id:OR_FREE_ROUTER,                          name:"Automático grátis (o OpenRouter escolhe)"},
+  {id:"google/gemma-4-31b-it:free",            name:"Gemma 4 31B"},
+  {id:"nvidia/nemotron-3-super-120b-a12b:free", name:"Nemotron 3 Super"},
 ];
+/** Modelo gratuito? (id terminado em ":free" ou o roteador grátis) */
+export const isFreeModel = id => id === OR_FREE_ROUTER || /:free$/.test(id || "");
 
 /* ---------- configurações ---------- */
-const DEFAULTS = {provider:"anthropic", model:MODELS[0].id, apiKey:"", orKey:"", orModel:OR_QUICK[0].id};
+const DEFAULTS = {provider:"anthropic", model:MODELS[0].id, apiKey:"", orKey:"", orModel:OR_FREE_ROUTER};
 export function getSettings(){
-  try{ return {...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || "{}")}; }
-  catch(e){ return {...DEFAULTS}; }
+  let s;
+  try{ s = {...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || "{}")}; }
+  catch(e){ s = {...DEFAULTS}; }
+  if(!isFreeModel(s.orModel)) s.orModel = OR_FREE_ROUTER;   // só modelos grátis no OpenRouter
+  return s;
 }
 /** Nome do modelo em uso, para mostrar na tela. */
 export function currentModelName(){
   const s = getSettings();
-  if(s.provider === "openrouter") return (OR_QUICK.find(m=>m.id===s.orModel)?.name || s.orModel) + " · OpenRouter";
+  if(s.provider === "openrouter") return (OR_QUICK.find(m=>m.id===s.orModel)?.name || s.orModel) + " · OpenRouter (grátis)";
   return MODELS.find(m=>m.id===s.model)?.name || s.model;
 }
-/** Lista de modelos de texto do OpenRouter (pública, sem chave). */
+/** Lista dos modelos de texto GRATUITOS do OpenRouter (pública, sem chave). */
 let orModels = null;
 export async function listOpenRouterModels(){
   if(orModels) return orModels;
   const r = await fetch(OR_URL + "/models");
   if(!r.ok) throw new Error("Não deu para carregar a lista de modelos do OpenRouter.");
   const {data} = await r.json();
-  orModels = data.filter(m => (m.architecture?.output_modalities || ["text"]).includes("text") && !m.id.endsWith(":batch"))
+  const free = m => m.pricing?.prompt === "0" && m.pricing?.completion === "0";
+  const chat = m => (m.architecture?.output_modalities || ["text"]).includes("text") && !/lyria|content-safety|:batch$/.test(m.id);
+  orModels = data.filter(m => free(m) && chat(m) && isFreeModel(m.id))
     .map(m => ({id:m.id, name:m.name})).sort((a,b) => a.name.localeCompare(b.name));
   return orModels;
 }
@@ -175,10 +183,10 @@ export async function runTask(taskId, {text, extra="", context="", onText, signa
 /* ---------- OpenRouter ---------- */
 function orError(status, msg){
   if(status === 401) return new AIError("chave", "A chave do OpenRouter não foi aceita. Confira se copiou ela inteira nas Configurações.");
-  if(status === 402) return new AIError("creditos", "Sua conta do OpenRouter está sem créditos. Coloque créditos em openrouter.ai e tente de novo.");
+  if(status === 402) return new AIError("creditos", "O OpenRouter pediu créditos para este pedido. Confira se o modelo escolhido é mesmo gratuito (termina em \"(free)\").");
   if(status === 403) return new AIError("permissao", "O OpenRouter bloqueou este pedido" + (msg ? `: ${msg}` : "."));
-  if(status === 404) return new AIError("modelo", "Esse modelo não foi encontrado no OpenRouter. Escolha outro nas Configurações.");
-  if(status === 408 || status === 429) return new AIError("limite", "Muitos pedidos seguidos (ou o modelo está ocupado). Espere um minutinho e tente de novo.");
+  if(status === 404) return new AIError("modelo", "Esse modelo grátis não está disponível agora. Escolha \"Automático grátis\" nas Configurações. Se continuar, em openrouter.ai/settings/privacy permita o uso de modelos gratuitos.");
+  if(status === 408 || status === 429) return new AIError("limite", "Os modelos grátis têm limite de pedidos por minuto e por dia. Espere um pouco e tente de novo, ou troque de modelo.");
   if(status === 400) return new AIError("pedido", "O OpenRouter recusou o pedido" + (msg ? `: ${msg}` : ".") + " Se o texto for muito grande, tente uma parte menor.");
   if(status >= 500) return new AIError("servidor", "O modelo ou o OpenRouter está com problemas agora. Tente de novo daqui a pouco.");
   return new AIError("api", `Erro do OpenRouter (${status})` + (msg ? `: ${msg}` : ""));

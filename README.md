@@ -8,7 +8,7 @@ Site para organizar anotações de estudo em **pastas** e **cadernos** e baixar 
 - Busca em todos os cadernos
 - Início com abas (Visão geral, Pastas, Cadernos, Etiquetas), animações e personalização (nome, cor do site, desenhos, seções)
 - Editor em abas (Escrever, Modelo, Informações, Capas, IA) e modos Escrever / Lado a lado / Prévia
-- Assistente de IA com a API do Claude (chave da própria pessoa): resumir página, organizar texto colado, perguntas de revisão e explicar termos
+- Assistente de IA com a chave da própria pessoa (API do Claude ou modelos gratuitos do OpenRouter): resumir página, organizar texto colado, perguntas de revisão e explicar termos
 - Tudo fica salvo no navegador (IndexedDB), sem login e sem servidor. Backup e restauração em arquivo `.json`.
 
 ## Rodar no computador
@@ -43,7 +43,7 @@ img/
 js/
   main.js             início do site: rotas (#/...), backup, busca, exemplo
   app/state.js        estado compartilhado entre as telas
-  ai/assistant.js     assistente de IA (SDK oficial da Anthropic, chave guardada no navegador)
+  ai/assistant.js     assistente de IA (Anthropic pelo SDK oficial, ou OpenRouter; chave guardada no navegador)
   data/
     store.js          salva pastas, cadernos e imagens no navegador; backup
     templates.js      os 7 modelos: paletas e estilos
@@ -88,6 +88,11 @@ O PDF usa a própria prévia: o botão abre a impressão do navegador com `print
 
 ## Assistente de IA
 
-Em **Configurações → Assistente de IA**, cada pessoa cola a própria chave da API do Claude (criada em https://console.anthropic.com/settings/keys) e escolhe o modelo (Claude Opus 5.5 por padrão, ou Sonnet 5.5 / Haiku 5.5). A chave fica só no navegador (`localStorage`) e os pedidos vão direto para `api.anthropic.com`, cobrados na conta da pessoa.
+Em **Configurações → Assistente de IA**, cada pessoa escolhe o provedor e cola a própria chave:
+
+- **Claude (Anthropic):** chave criada em https://console.anthropic.com/settings/keys. Modelos: Claude Opus 5.5 (padrão), Sonnet 5.5 ou Haiku 5.5. Usa o SDK oficial e é cobrado na conta da pessoa.
+- **OpenRouter (grátis):** chave criada em https://openrouter.ai/settings/keys, sem precisar de créditos. O Cadernim mostra **só modelos gratuitos** (`:free`). O padrão é `openrouter/free`, que escolhe sozinho um modelo grátis disponível. Os modelos grátis têm limite de pedidos e alguns guardam os textos enviados.
+
+A chave fica só no navegador (`localStorage`) e os pedidos vão direto para o provedor.
 
 No editor, a aba **IA** tem quatro tarefas. A resposta vem na mesma sintaxe do caderno (`docs/SINTAXE.md`) e pode ir para uma página nova, para o fim da página ou para onde está o cursor.

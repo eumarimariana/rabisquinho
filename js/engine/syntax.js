@@ -60,7 +60,8 @@ export function parse(src){
         const ind = m[1].replace(/\t/g,"  ").length;
         const kind = /^\d/.test(m[2]) ? "ol" : "ul";
         if(kind==="ol" && prevKind!=="ol") gid++;
-        items.push({kind, level: ind>=4?2 : ind>=2?1 : 0, key:m[2]==="!", text:m[3], gid});
+        const starred = /^!\s+/.test(m[3]);   // "- ! termo" também conta como termo importante
+        items.push({kind, level: ind>=4?2 : ind>=2?1 : 0, key:m[2]==="!" || starred, text: starred ? m[3].replace(/^!\s+/, "") : m[3], gid});
         prevKind = kind; i++;
       }
       out.push({t:"list", items}); continue;
