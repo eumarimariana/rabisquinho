@@ -30,6 +30,7 @@ Em ordem de prioridade.
 - [x] Início com abas, animações e personalização
 - [x] Editor em abas, com modo só de escrever
 - [x] Assistente de IA (API do Claude, chave própria): resumir, organizar, revisar, explicar
+- [x] Tour de boas-vindas na primeira visita (e no botão "?")
 
 ### Estudo
 9. [ ] **Modo revisão / flashcards** a partir dos termos marcados com `!` e `{{ }}`

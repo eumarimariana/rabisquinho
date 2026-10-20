@@ -37,6 +37,7 @@ Tudo fica salvo no seu navegador: sem login, sem servidor, sem instalar nada.
 - **Word e PDF.** O .docx sai em duas colunas, com cabeçalho, rodapé e número de página. O PDF sai igual à prévia.
 - **Busca.** Procura em títulos, etiquetas e no texto de todas as páginas, sem se importar com acentos.
 - **Backup.** Um arquivo `.json` com tudo, para trocar de computador ou guardar.
+- **Tour de boas-vindas.** Na primeira visita, 6 passos curtos explicam como tudo funciona. Dá para rever pelo botão **?** no topo.
 
 <p align="center">
   <img src="docs/images/editor.jpg" alt="Editor com o texto à esquerda e a prévia da folha à direita" width="100%"><br>
@@ -155,7 +156,7 @@ js/
   ai/assistant.js     assistente de IA (Anthropic ou OpenRouter)
   data/               salvamento no navegador, modelos e exemplo
   engine/             texto → blocos → prévia (HTML) e Word (.docx)
-  ui/                 cartões, cores, janelas, barra de formatação, capas, preferências
+  ui/                 cartões, cores, janelas, barra de formatação, capas, preferências, tour
   views/              uma tela por arquivo: início, pasta, editor, busca, etiqueta, configurações
 docs/
   SINTAXE.md          todos os símbolos de formatação

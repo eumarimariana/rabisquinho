@@ -11,6 +11,7 @@ import { searchView } from "./views/search.js";
 import { tagView } from "./views/tag.js";
 import { settingsView } from "./views/settings.js";
 import { applyPrefs } from "./ui/prefs.js";
+import { openTour, maybeShowTour } from "./ui/tour.js";
 
 async function router(){
   if(app.editor?.timer){ await app.editor.flush(); }
@@ -68,7 +69,8 @@ async function seed(){
 
 applyPrefs();
 store.askPersist();
-seed().then(router);
+seed().then(router).then(maybeShowTour);
+$("#help").onclick = openTour;
 
 /* ---------- caixa de busca ---------- */
 $("#search").addEventListener("submit", e => {

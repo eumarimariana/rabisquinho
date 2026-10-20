@@ -2,6 +2,7 @@
 import { esc } from "../engine/index.js";
 import { $, view, ic, paint, toast, crumbs } from "../ui/dom.js";
 import { getPrefs, savePrefs, ACCENTS, DOODLES, SECTIONS } from "../ui/prefs.js";
+import { openTour } from "../ui/tour.js";
 import { getSettings, saveSettings, MODELS, PROVIDERS, OR_QUICK, isFreeModel, listOpenRouterModels, testKey } from "../ai/assistant.js";
 
 export async function settingsView(){
@@ -25,6 +26,12 @@ export async function settingsView(){
           <label class="check"><input type="checkbox" ${s.on?"checked":""}> ${esc(secName(s.id))}</label>
           <span class="move"><button type="button" class="icon-mini" data-mv="-1" aria-label="Subir ${esc(secName(s.id))}" ${i===0?"disabled":""}>${ic("chevron-up")}</button>
           <button type="button" class="icon-mini" data-mv="1" aria-label="Descer ${esc(secName(s.id))}" ${i===p.sections.length-1?"disabled":""}>${ic("chevron-down")}</button></span></li>`).join("")}</ol></div>
+    </section>
+
+    <section class="panel" aria-labelledby="t-help">
+      <h2 id="t-help">${ic("circle-help")}Ajuda</h2>
+      <p class="help">Quer ver de novo a explicação de como o Rabisquinho funciona?</p>
+      <div class="row"><button type="button" class="btn" id="see-tour">${ic("play")}Ver o tour de boas-vindas</button></div>
     </section>
 
     <section class="panel" aria-labelledby="t-ia">
@@ -72,6 +79,8 @@ export async function settingsView(){
     </section>
   </div>`;
   paint(view);
+
+  $("#see-tour").onclick = openTour;
 
   /* aparência */
   $("#p-name").addEventListener("input", e => savePrefs({name:e.target.value.trim()}));
