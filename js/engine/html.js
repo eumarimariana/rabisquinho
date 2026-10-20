@@ -18,10 +18,10 @@ export function htmlOf(model){
   const counters = {};
   return model.map(x=>{
     if(x.t==="pb") return "<!--PB-->";
-    if(x.t==="img") return `<img src="${IMAGES[x.id]?.url||""}" alt="" style="display:block;width:${x.w}pt;height:${x.h}pt;object-fit:cover;break-after:avoid;break-inside:avoid;${x.center?"margin:0 auto;":""}">`;
+    if(x.t==="img") return `<img ${x.center && !x.keep ? "" : "data-keep "}src="${IMAGES[x.id]?.url||""}" alt="" style="display:block;width:${x.w}pt;height:${x.h}pt;object-fit:cover;${x.center && !x.keep ? "" : "break-after:avoid;"}break-inside:avoid;${x.center?"margin:0 auto;":""}">`;
     if(x.t==="t"){
       const total = x.widths.reduce((a,b)=>a+b,0);
-      return `<table style="width:${total}pt;border-collapse:collapse;table-layout:fixed;">`+
+      return `<table ${x.keep ? "data-keep " : ""}style="width:${total}pt;border-collapse:collapse;table-layout:fixed;${x.keep ? "break-after:avoid;" : ""}">`+
         `<colgroup>${x.widths.map(w=>`<col style="width:${w}pt">`).join("")}</colgroup>`+
         x.rows.map(r=>`<tr>${r.map(c=>`<td style="padding:3pt 5pt;vertical-align:${c.valign==="center"?"middle":"top"};${c.bg?`background-color:${c.bg};`:""}${bdH(c.bd)}">${htmlOf(c.paras)}</td>`).join("")}</tr>`).join("")+`</table>`;
     }
@@ -41,6 +41,7 @@ export function htmlOf(model){
       pre = `<span style="display:inline-block;width:14pt;text-indent:0;font-family:${cssFont(/[♥✿✦➔☁★]/.test(mark)?"Segoe UI Symbol":R.font)};font-size:${L.level?7:8}pt;color:${R.bulletInk||"#000"};">${mark}</span>`;
     } else if(x.firstLine) st += `text-indent:${x.firstLine}pt;`;
     const body = x.runs.length ? x.runs.map(runH).join("") : `<span style="font-size:${R.bodySz}pt">&nbsp;</span>`;
-    return `<p style="${st}">${pre}${body}</p>`;
+    if(x.keepNext) st += "break-after:avoid;";
+    return `<p ${x.keepNext ? "data-keep " : ""}style="${st}">${pre}${body}</p>`;
   }).join("");
 }

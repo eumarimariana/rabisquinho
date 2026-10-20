@@ -47,6 +47,21 @@ const CHEAT = `
    quando não cabe mais, continua numa folha nova (com o mesmo cabeçalho e rodapé). */
 const overflows = cols => cols.scrollWidth > cols.clientWidth + 2;
 const isSpacer = n => n.nodeType === 1 && n.tagName === "P" && !n.textContent.replace(/\u00a0/g, "").trim() && !n.querySelector("img") && !n.style.borderBottom;
+/** Junta cada título/legenda/capa (data-keep) com o que vem logo depois, para nunca ficarem separados
+    nem entre colunas nem entre folhas. */
+function groupKeeps(nodes){
+  const out = [];
+  for(let i = 0; i < nodes.length; i++){
+    if(!nodes[i].hasAttribute("data-keep")){ out.push(nodes[i]); continue; }
+    // o título + linhas vazias + o primeiro bloco depois dele (só um, para não virar uma corrente)
+    const g = document.createElement("div"); g.className = "keep-group";
+    g.appendChild(nodes[i]);
+    while(i + 1 < nodes.length && isSpacer(nodes[i + 1])) g.appendChild(nodes[++i]);
+    if(i + 1 < nodes.length) g.appendChild(nodes[++i]);
+    out.push(g);
+  }
+  return out;
+}
 function paginate(container, chunks, {head, foot, R}){
   const pg = PAGE[R.page];
   // as folhas são montadas num espaço invisível (mas com tamanho de verdade) e só depois vão para a prévia,
@@ -65,7 +80,7 @@ function paginate(container, chunks, {head, foot, R}){
   };
   chunks.forEach((html, page) => {
     const tmp = document.createElement("div"); tmp.innerHTML = html;
-    const nodes = [...tmp.childNodes].filter(n => n.nodeType === 1);
+    const nodes = groupKeeps([...tmp.childNodes].filter(n => n.nodeType === 1));
     let cols = newSheet(page);
     // caminho rápido: tudo cabe numa folha
     nodes.forEach(n => cols.appendChild(n));
@@ -77,7 +92,11 @@ function paginate(container, chunks, {head, foot, R}){
       if(overflows(cols) && cols.childElementCount > 1){
         cols.removeChild(n);
         while(cols.lastElementChild && isSpacer(cols.lastElementChild)) cols.lastElementChild.remove();
+        // títulos, legendas e capas não ficam sozinhos no fim da folha: vão junto para a próxima
+        const carry = [];
+        while(cols.lastElementChild?.hasAttribute("data-keep") && cols.childElementCount > 1){ const k = cols.lastElementChild; k.remove(); carry.unshift(k); }
         cols = newSheet(page);
+        carry.forEach(k => cols.appendChild(k));
         if(!isSpacer(n)) cols.appendChild(n);
       }
     }
