@@ -31,7 +31,7 @@ Tudo fica salvo no seu navegador: sem login, sem servidor, sem instalar nada.
 
 - **Pastas e cadernos.** Cada pasta tem ícone e cor; cada caderno tem capa colorida, espiral e etiqueta. Marque favoritos com a estrela e use etiquetas como "prova" e "revisar".
 - **Início com a sua cara.** Abas (Visão geral, Pastas, Cadernos, Etiquetas), saudação com o seu nome, cor do site, desenhinhos animados e escolha das seções que aparecem.
-- **Editor feito para escrever.** Abas Escrever, Modelo, Info, Capas e IA, barra de formatação e três modos: só escrever, lado a lado ou só a prévia.
+- **Editor feito para escrever.** Abas Escrever, Modelo, Info, Capas e IA, barra de formatação, botões de **Desfazer** e **Refazer** (Ctrl+Z / Ctrl+Y) e três modos: só escrever, lado a lado ou só a prévia.
 - **Várias páginas por caderno.** E quando uma página fica grande, a prévia quebra sozinha em várias folhas, com cabeçalho, rodapé e número.
 - **Capas e imagens.** Faixa com foto ou estampa em cima de cada capítulo, e imagens no meio do texto (botão ou Ctrl+V).
 - **Word e PDF.** O .docx sai em duas colunas, com cabeçalho, rodapé e número de página. O PDF sai igual à prévia.

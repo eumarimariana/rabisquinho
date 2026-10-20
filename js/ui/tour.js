@@ -19,7 +19,7 @@ const STEPS = [
   },
   {
     title: "Escrever é fácil",
-    text: `Cada linha vira um pedaço do caderno. Use os botões da barra de formatação ou digite os atalhos, sem precisar decorar nada.`,
+    text: `Cada linha vira um pedaço do caderno. Use os botões da barra de formatação ou digite os atalhos, sem precisar decorar nada. Errou? Use <b>Desfazer</b> (Ctrl+Z).`,
     art: `<div class="tour-art syntax-art">
       <div><code># Fotossíntese</code><span>tópico 1.0</span></div>
       <div><code>- Usa luz e água</code><span>marcador</span></div>
