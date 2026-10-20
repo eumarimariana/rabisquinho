@@ -31,8 +31,9 @@ summary{cursor:pointer;font-weight:700;color:var(--teal)}
 .paper{margin:0 auto;background:#ffffff;color:#000000;padding:36pt 72pt;box-shadow:0 1px 3px rgba(0,0,0,.12),0 8px 24px rgba(0,0,0,.08);display:flex;flex-direction:column;gap:12pt;overflow:hidden;flex:none}
 .paper .sheet-head,.paper .sheet-foot{flex:none}
 .paper .cols{flex:1;min-height:0}
-.paper .cols{column-count:2;column-gap:36pt;column-fill:auto;overflow:hidden}
-.paper .cols.sep{column-rule:0.75pt solid #9a9a9a}
+.paper .cols{display:flex;gap:36pt;overflow:hidden}
+.paper .col{flex:1 1 0;min-width:0;height:100%;overflow:hidden;position:relative}
+.paper .cols.sep{background:linear-gradient(#9a9a9a,#9a9a9a) center / 0.75pt 100% no-repeat}
 .paper .cols table{break-inside:avoid}
 .paper table{border-collapse:collapse;table-layout:fixed}
 .paper p{margin:0}
@@ -145,6 +146,5 @@ summary{cursor:pointer;font-weight:700;color:var(--teal)}
 .ai-range label{display:inline-flex;align-items:center;gap:6px}
 .ai-range select{width:auto;font-weight:400}
 .ai-range small{color:var(--muted);font-weight:400}
-.paper .keep-group{break-inside:avoid}
 .paper .cols{hyphens:auto;-webkit-hyphens:auto}
 .paper td{hyphens:manual}

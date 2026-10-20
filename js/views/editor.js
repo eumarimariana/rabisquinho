@@ -42,26 +42,34 @@ const CHEAT = `
   <code>{{termo}}</code><span>Negrito na cor principal do modelo</span>`;
 
 // Como no Word: enche a 1ª coluna antes de passar para a 2ª (altura mínima de uma página).
-/* ---------- folhas da prévia: quebra automática de página ----------
-   Cada folha tem o tamanho exato do papel. O conteúdo vai entrando nas duas colunas;
-   quando não cabe mais, continua numa folha nova (com o mesmo cabeçalho e rodapé). */
-const overflows = cols => cols.scrollWidth > cols.clientWidth + 2;
+/* ---------- folhas da prévia: quebra automática de página e de coluna ----------
+   Cada folha tem o tamanho exato do papel e duas colunas de altura fixa. O próprio site distribui o
+   conteúdo: enche a coluna 1, depois a 2, depois a próxima folha (como o Word faz no .docx).
+   - Título, legenda e capa (data-keep) nunca ficam sozinhos no fim de uma coluna.
+   - Tabela grande continua na coluna seguinte, repetindo a linha de títulos. */
+const full = col => col.scrollHeight > col.clientHeight + 1;
 const isSpacer = n => n.nodeType === 1 && n.tagName === "P" && !n.textContent.replace(/\u00a0/g, "").trim() && !n.querySelector("img") && !n.style.borderBottom;
-/** Junta cada título/legenda/capa (data-keep) com o que vem logo depois, para nunca ficarem separados
-    nem entre colunas nem entre folhas. */
-function groupKeeps(nodes){
-  const out = [];
-  for(let i = 0; i < nodes.length; i++){
-    if(!nodes[i].hasAttribute("data-keep")){ out.push(nodes[i]); continue; }
-    // o título + linhas vazias + o primeiro bloco depois dele (só um, para não virar uma corrente)
-    const g = document.createElement("div"); g.className = "keep-group";
-    g.appendChild(nodes[i]);
-    while(i + 1 < nodes.length && isSpacer(nodes[i + 1])) g.appendChild(nodes[++i]);
-    if(i + 1 < nodes.length) g.appendChild(nodes[++i]);
-    out.push(g);
-  }
-  return out;
+const isKeep = n => n?.hasAttribute?.("data-keep");
+
+/** Tira linhas do fim da tabela até ela caber na coluna. Devolve a continuação (com a linha de títulos
+    repetida), null se coube inteira, ou false se não coube nem a primeira linha de conteúdo. */
+function splitTable(tbl, col){
+  const rows = [...tbl.rows];
+  if(rows.length < 3) return false;
+  const moved = [];
+  while(full(col) && tbl.rows.length > 2){ const r = tbl.rows[tbl.rows.length - 1]; moved.unshift(r); r.remove(); }
+  if(full(col)){ const body = tbl.tBodies[0] || tbl; moved.forEach(r => body.appendChild(r)); return false; }
+  if(!moved.length) return null;
+  const rest = tbl.cloneNode(false);
+  rest.removeAttribute("data-keep");
+  const cg = tbl.querySelector("colgroup"); if(cg) rest.appendChild(cg.cloneNode(true));
+  const tb = document.createElement("tbody");
+  tb.appendChild(rows[0].cloneNode(true));          // repete a linha de títulos
+  moved.forEach(r => tb.appendChild(r));
+  rest.appendChild(tb);
+  return rest;
 }
+
 function paginate(container, chunks, {head, foot, R}){
   const pg = PAGE[R.page];
   // as folhas são montadas num espaço invisível (mas com tamanho de verdade) e só depois vão para a prévia,
@@ -70,35 +78,42 @@ function paginate(container, chunks, {head, foot, R}){
   stage.className = "sheets measuring"; stage.setAttribute("aria-hidden", "true");
   document.body.appendChild(stage);
   const sheets = [];
+  let slots = [], slot = 0;
   const newSheet = page => {
     const el = document.createElement("div");
     el.className = "paper"; el.dataset.page = page; el.lang = "pt-BR";   // hifenização em português
     el.style.width = pg.w + "pt"; el.style.height = pg.h + "pt";
-    el.innerHTML = `<div class="sheet-head">${head}</div><div class="cols${R.sep ? " sep" : ""}"></div><div class="sheet-foot">${foot}</div>`;
+    el.innerHTML = `<div class="sheet-head">${head}</div><div class="cols${R.sep ? " sep" : ""}"><div class="col"></div><div class="col"></div></div><div class="sheet-foot">${foot}</div>`;
     stage.appendChild(el); sheets.push(el);
-    return el.querySelector(".cols");
+    slots.push(...el.querySelectorAll(".col"));
   };
   chunks.forEach((html, page) => {
     const tmp = document.createElement("div"); tmp.innerHTML = html;
-    const nodes = groupKeeps([...tmp.childNodes].filter(n => n.nodeType === 1));
-    let cols = newSheet(page);
-    // caminho rápido: tudo cabe numa folha
-    nodes.forEach(n => cols.appendChild(n));
-    if(!overflows(cols)) return;
-    cols.innerHTML = "";
-    for(const n of nodes){
-      if(!cols.childElementCount && isSpacer(n)) continue;          // folha nova não começa com linha vazia
-      cols.appendChild(n);
-      if(overflows(cols) && cols.childElementCount > 1){
-        cols.removeChild(n);
-        while(cols.lastElementChild && isSpacer(cols.lastElementChild)) cols.lastElementChild.remove();
-        // títulos, legendas e capas não ficam sozinhos no fim da folha: vão junto para a próxima
-        const carry = [];
-        while(cols.lastElementChild?.hasAttribute("data-keep") && cols.childElementCount > 1){ const k = cols.lastElementChild; k.remove(); carry.unshift(k); }
-        cols = newSheet(page);
-        carry.forEach(k => cols.appendChild(k));
-        if(!isSpacer(n)) cols.appendChild(n);
+    const nodes = [...tmp.childNodes].filter(n => n.nodeType === 1);
+    slots = []; slot = 0; newSheet(page);
+    const next = () => { slot++; if(slot >= slots.length) newSheet(page); return slots[slot]; };
+    let col = slots[0];
+    const queue = [...nodes];
+    while(queue.length){
+      let n = queue.shift();
+      if(!col.childElementCount && isSpacer(n)) continue;            // coluna não começa com linha vazia
+      col.appendChild(n);
+      if(!full(col)) continue;
+      // não coube: tabela grande pode continuar na próxima coluna
+      if(n.tagName === "TABLE"){
+        const rest = splitTable(n, col);
+        if(rest){ col = next(); queue.unshift(rest); continue; }
+        if(rest === null) continue;
       }
+      if(col.childElementCount === 1){ col = next(); continue; }      // sozinho e ainda grande demais: deixa como está
+      n.remove();
+      while(col.lastElementChild && isSpacer(col.lastElementChild)) col.lastElementChild.remove();
+      // título/legenda/capa que estava esperando por este bloco vai junto para a próxima coluna
+      const carry = [];
+      while(isKeep(col.lastElementChild) && col.childElementCount > 1){ const k = col.lastElementChild; k.remove(); carry.unshift(k); }
+      col = next();
+      carry.forEach(k => col.appendChild(k));
+      queue.unshift(n);
     }
   });
   sheets.forEach((el, i) => {
