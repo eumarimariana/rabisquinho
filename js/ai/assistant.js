@@ -113,6 +113,7 @@ Regras:
 - Escreva em português do Brasil, com linguagem clara de estudante.
 - Devolva só o texto do caderno: sem cumprimentos, sem explicar o que fez, sem blocos de código, sem Markdown que não esteja na lista (não use ** em títulos, não use ---).
 - Deixe uma linha em branco entre blocos.
+- Não escreva números nos títulos (nada de "# 1.0 Título"): o caderno numera sozinho.
 - Prefira listas curtas a parágrafos longos. Marque com ! ou {{ }} só os termos que realmente importam.
 - Não invente fatos que não estão no texto da pessoa; se faltar algo importante, você pode completar com conhecimento geral confiável, sem exagerar.
 - Nunca escreva linhas que começam com [capa: ou [imagem: (são de imagens).`;
@@ -143,7 +144,9 @@ export const TASKS = {
 /** Tira cercas de código e linhas de imagem que a IA não deveria mandar. */
 export function cleanOutput(s){
   return s.replace(/^```[a-z]*\n?/i, "").replace(/\n?```\s*$/, "")
-    .split("\n").filter(l => !/^\s*\[(capa|imagem):/.test(l)).join("\n").trim();
+    .split("\n").filter(l => !/^\s*\[(capa|imagem):/.test(l))
+    .map(l => l.replace(/^(#{1,3})\s+\d+(?:\.\d+)*\.?\s+/, "$1 "))   // "# 1.0 Título" → "# Título" (o caderno numera sozinho)
+    .join("\n").trim();
 }
 
 /**

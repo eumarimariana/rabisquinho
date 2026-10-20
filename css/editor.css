@@ -124,3 +124,17 @@ summary{cursor:pointer;font-weight:700;color:var(--teal)}
 .ai-out pre{margin:0;max-height:340px;overflow:auto;white-space:pre-wrap;font-family:var(--font-mono);font-size:12.5px;line-height:1.55}
 .ed-tabs,.ed-pane{flex-shrink:0}
 .ed-tab{padding:8px 6px;gap:4px}
+
+/* painel da IA: espaçamento e estados */
+#ai-box{display:flex;flex-direction:column;gap:14px}
+.ai-head h2{margin:0 0 2px}
+.ai-head .help{margin:0}
+.ai-from{margin:0;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.ai-from svg.lucide{width:15px;height:15px}
+.ai-task:disabled{opacity:.45;cursor:not-allowed}
+.ai-task[aria-checked="true"]{border-color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal);background:var(--soft-lilac)}
+.ai-actions{padding-top:2px}
+.status-msg.err{color:var(--danger)}
+.ai-out-title{margin:0;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--coral)}
+.ai-out-title svg.lucide{width:14px;height:14px}
+#ai-box input[type=text]{font-weight:400}

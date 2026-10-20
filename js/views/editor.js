@@ -396,7 +396,9 @@ export async function editorView(id, startPage=0){
   /* ---------- assistente de IA ---------- */
   const WHERE = [["nova","Numa página nova"],["fim","No fim desta página"],["cursor","Onde está o cursor"]];
   const DEFAULT_WHERE = {resumo:"nova", organizar:"fim", revisao:"nova", explicar:"cursor"};
-  let ai = {task:"resumo", where:"nova", abort:null, result:""};
+  // Estado do painel (sobrevive quando o painel é redesenhado)
+  let ai = {task:"resumo", where:"nova", abort:null, result:"", resultTask:"", extra:"", src:{organizar:"", explicar:""}, status:"", statusErr:false};
+  const setStatus = (msg, err=false) => { ai.status = msg; ai.statusErr = err; const st = $("#ai-status"); if(st){ st.textContent = msg; st.classList.toggle("err", err); } };
   const drawAI = () => {
     const box = $("#ai-box");
     if(!hasKey()){
@@ -405,60 +407,71 @@ export async function editorView(id, startPage=0){
         <a class="btn primary" href="#/config">${ic("settings")}Ir para Configurações</a></div>`;
       paint(box); return;
     }
-    const t = TASKS[ai.task];
+    const t = TASKS[ai.task], busy = !!ai.abort;
+    // ao abrir "Explicar" com uma palavra selecionada no texto, ela já vem preenchida
     const picked = text.value.slice(sel.a, sel.b).trim();
+    if(ai.task === "explicar" && picked && !ai.src.explicar) ai.src.explicar = picked;
     box.innerHTML = `
-      <h2>Assistente de IA</h2>
-      <p class="help">Usando ${esc(currentModelName())} · <a href="#/config">trocar</a></p>
-      <div class="ai-tasks">${Object.entries(TASKS).map(([id,x]) => `<button type="button" class="ai-task" data-task="${id}" aria-pressed="${id===ai.task}">${ic(x.icon)}<b>${x.name}</b><small>${x.help}</small></button>`).join("")}</div>
+      <div class="ai-head"><h2>Assistente de IA</h2>
+        <p class="help">Usando ${esc(currentModelName())} · <a href="#/config">trocar</a></p></div>
+      <div class="ai-tasks" role="radiogroup" aria-label="O que a IA vai fazer">${Object.entries(TASKS).map(([id,x]) =>
+        `<button type="button" class="ai-task" role="radio" data-task="${id}" aria-checked="${id===ai.task}" ${busy && id!==ai.task ? "disabled" : ""}>${ic(x.icon)}<b>${x.name}</b><small>${x.help}</small></button>`).join("")}</div>
       ${t.needsText
-        ? `<label class="field">${ai.task==="explicar" ? "Termo ou trecho" : "Texto para organizar"}<textarea id="ai-src" rows="${ai.task==="explicar"?3:8}" placeholder="${ai.task==="explicar" ? "Ex.: mitocôndria" : "Cole aqui o texto da aula, de um PDF ou de uma transcrição"}">${esc(ai.task==="explicar" ? picked : "")}</textarea></label>`
-        : `<p class="help">${ic("file-text")} Vai usar o texto da <b>Página ${app.editor.active+1}</b>.</p>`}
-      <label class="field">Pedido extra (opcional)<input type="text" id="ai-extra" placeholder="Ex.: mais curto, foco nas datas, linguagem bem simples"></label>
+        ? `<label class="field">${ai.task==="explicar" ? "Termo ou trecho" : "Texto para organizar"}
+            <textarea id="ai-src" rows="${ai.task==="explicar"?3:8}" placeholder="${ai.task==="explicar" ? "Ex.: mitocôndria" : "Cole aqui o texto da aula, de um PDF ou de uma transcrição"}">${esc(ai.src[ai.task] || "")}</textarea></label>`
+        : `<p class="ai-from">${ic("file-text")} Vai usar o texto da <b>Página ${app.editor.active+1}</b>.</p>`}
+      <label class="field">Pedido extra (opcional)
+        <input type="text" id="ai-extra" value="${esc(ai.extra)}" placeholder="Ex.: mais curto, foco nas datas, linguagem bem simples"></label>
       <div class="field"><span>Onde colocar o resultado</span>
         <div class="row" id="ai-where">${WHERE.map(([v,l]) => `<button type="button" class="seg" data-v="${v}" aria-pressed="${v===ai.where}">${l}</button>`).join("")}</div></div>
-      <div class="row">
-        <button type="button" class="btn primary" id="ai-go">${ic("sparkles")}Gerar</button>
-        <button type="button" class="btn" id="ai-stop" hidden>${ic("square")}Parar</button>
-        <span class="status-msg" id="ai-status" role="status"></span>
+      <div class="row ai-actions">
+        <button type="button" class="btn primary" id="ai-go" ${busy ? "disabled" : ""}>${ic("sparkles")}${busy ? "Gerando…" : "Gerar"}</button>
+        <button type="button" class="btn" id="ai-stop" ${busy ? "" : "hidden"}>${ic("square")}Parar</button>
+        <span class="status-msg ${ai.statusErr ? "err" : ""}" id="ai-status" role="status">${esc(ai.status)}</span>
       </div>
-      <div class="ai-out" id="ai-out" ${ai.result ? "" : "hidden"}>
+      <div class="ai-out" id="ai-out" ${ai.result || busy ? "" : "hidden"}>
+        <p class="ai-out-title">${ic("sparkles")}Resultado: ${esc(TASKS[ai.resultTask || ai.task].name)}</p>
         <pre id="ai-text">${esc(ai.result)}</pre>
-        <div class="row"><button type="button" class="btn primary" id="ai-insert">${ic("check")}Colocar no caderno</button>
+        <div class="row" id="ai-out-actions" ${busy ? "hidden" : ""}>
+          <button type="button" class="btn primary" id="ai-insert">${ic("check")}Colocar no caderno</button>
           <button type="button" class="btn" id="ai-discard">${ic("x")}Descartar</button></div>
       </div>`;
     paint(box);
-    box.querySelector(".ai-tasks").onclick = e => { const b = e.target.closest("[data-task]"); if(!b || ai.abort) return;
-      ai.task = b.dataset.task; ai.where = DEFAULT_WHERE[ai.task]; drawAI(); };
+    box.querySelector(".ai-tasks").onclick = e => {
+      const b = e.target.closest("[data-task]"); if(!b || b.disabled) return;
+      if(ai.abort){ setStatus("Espere terminar (ou clique em Parar) para trocar de tarefa."); return; }
+      ai.task = b.dataset.task; ai.where = DEFAULT_WHERE[ai.task]; drawAI();
+    };
+    const srcEl = $("#ai-src"); if(srcEl) srcEl.oninput = e => { ai.src[ai.task] = e.target.value; };
+    $("#ai-extra").oninput = e => { ai.extra = e.target.value; };
     $("#ai-where").onclick = e => { const b = e.target.closest("[data-v]"); if(!b) return; ai.where = b.dataset.v;
       $("#ai-where").querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b)); };
     $("#ai-go").onclick = generate;
     $("#ai-stop").onclick = () => ai.abort?.abort();
-    const ins = $("#ai-insert"); if(ins) ins.onclick = insertResult;
-    const dis = $("#ai-discard"); if(dis) dis.onclick = () => { ai.result = ""; drawAI(); };
+    $("#ai-insert").onclick = insertResult;
+    $("#ai-discard").onclick = () => { ai.result = ""; ai.resultTask = ""; setStatus(""); drawAI(); };
   };
   const generate = async () => {
-    const t = TASKS[ai.task], st = $("#ai-status");
-    const src = t.needsText ? ($("#ai-src")?.value || "").trim() : app.editor.pages[app.editor.active].text.trim();
-    if(!src){ st.textContent = t.needsText ? "Escreva ou cole um texto primeiro." : "Esta página está vazia. Escreva algo antes de pedir um resumo."; return; }
-    ai.abort = new AbortController(); ai.result = "";
-    $("#ai-go").disabled = true; $("#ai-stop").hidden = false; $("#ai-out").hidden = false; $("#ai-text").textContent = "";
-    st.textContent = "Pensando…";
-    let frame = 0;
+    if(ai.abort) return;
+    const t = TASKS[ai.task];
+    const src = t.needsText ? (ai.src[ai.task] || "").trim() : app.editor.pages[app.editor.active].text.trim();
+    if(!src){ setStatus(t.needsText ? "Escreva ou cole um texto primeiro." : "Esta página está vazia. Escreva algo antes de pedir à IA.", true); return; }
+    ai.abort = new AbortController(); ai.result = ""; ai.resultTask = ai.task;
+    setStatus("Pensando…"); drawAI();
+    let frame = 0, partial = "";
     try{
-      ai.result = await runTask(ai.task, {text:src, extra:$("#ai-extra").value, context: ai.task==="explicar" ? app.editor.pages[app.editor.active].text.slice(0, 6000) : "",
+      ai.result = await runTask(ai.task, {text:src, extra:ai.extra, context: ai.task==="explicar" ? app.editor.pages[app.editor.active].text.slice(0, 6000) : "",
         signal: ai.abort.signal,
-        onText: out => { st.textContent = "Escrevendo…"; if(!frame) frame = requestAnimationFrame(() => { frame = 0; const el = $("#ai-text"); if(el){ el.textContent = out; el.scrollTop = el.scrollHeight; } }); }});
-      $("#ai-text").textContent = ai.result;
-      st.textContent = "Pronto! Confira e coloque no caderno.";
+        onText: out => { partial = out; if(ai.status !== "Escrevendo…") setStatus("Escrevendo…");
+          if(!frame) frame = requestAnimationFrame(() => { frame = 0; const el = $("#ai-text"); if(el){ el.textContent = partial; el.scrollTop = el.scrollHeight; } }); }});
+      setStatus("Pronto! Confira e coloque no caderno.");
     }catch(err){
-      st.textContent = err.message;
-      if(!ai.result) $("#ai-out").hidden = !$("#ai-text").textContent;
-      ai.result = ai.result || $("#ai-text").textContent;
+      // parou no meio ou deu erro: guarda o que já tinha chegado, mas mostra o aviso certo
+      ai.result = partial.trim();
+      setStatus(err.code === "parado" ? (ai.result ? "Parado. O que já tinha sido escrito ficou aqui embaixo." : "Parado.") : err.message, err.code !== "parado");
     }finally{
       ai.abort = null;
-      const go = $("#ai-go"), stop = $("#ai-stop"); if(go) go.disabled = false; if(stop) stop.hidden = true;
-      if(ai.result) drawAI(), ($("#ai-status").textContent = "Pronto! Confira e coloque no caderno.");
+      drawAI();
     }
   };
   const insertResult = () => {
@@ -476,7 +489,7 @@ export async function editorView(id, startPage=0){
       insertBlock(text, out);
       E.pages[E.active].text = text.value;
     }
-    ai.result = ""; render(); schedule();
+    ai.result = ""; ai.resultTask = ""; setStatus(""); render(); schedule();
     showTab("escrever");
     toast("Pronto! O texto da IA entrou no caderno.");
   };
