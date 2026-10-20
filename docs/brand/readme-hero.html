@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Rabisquinho — capa do README</title>
+<!-- Fonte da imagem docs/brand/readme-hero.png. Abra no navegador, ajuste e tire um print do quadro de 1280×420. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;700&display=swap">
+<style>
+  :root{--bg:#f3ecfb;--ink:#3a2a45;--muted:#7d6a8a;--purple:#8e5fc0;--pink:#d4588f}
+  html,body{margin:0;background:#fff}
+  .hero{position:relative;width:1280px;height:420px;overflow:hidden;background:var(--bg);font-family:Nunito,sans-serif;color:var(--ink);
+    background-image:radial-gradient(rgba(142,95,192,.16) 1.6px,transparent 1.8px);background-size:22px 22px;border-radius:28px}
+  .text{position:absolute;left:96px;top:92px;width:600px}
+  .logo{display:flex;align-items:center;gap:18px}
+  .logo img{width:92px;height:92px}
+  h1{font-family:Fredoka,sans-serif;font-weight:600;font-size:84px;line-height:1;margin:0;color:var(--purple);letter-spacing:-1px}
+  h1 span{color:var(--pink)}
+  p{font-size:27px;line-height:1.35;margin:26px 0 0;color:var(--muted)}
+  p b{color:var(--ink)}
+  .chips{display:flex;gap:10px;margin-top:26px}
+  .chip{font-family:Fredoka,sans-serif;font-weight:500;font-size:19px;padding:7px 16px;border-radius:999px;background:#fff;color:var(--ink);box-shadow:0 2px 0 rgba(58,42,69,.08)}
+  /* cadernos desenhados */
+  .books{position:absolute;right:44px;top:58px;width:470px;height:320px}
+  .nb{position:absolute;width:170px;height:226px;border-radius:8px 18px 18px 8px;background:var(--c);
+    box-shadow:inset 14px 0 0 rgba(58,42,69,.10),0 4px 0 rgba(58,42,69,.08),0 18px 30px rgba(120,60,140,.18)}
+  .nb::after{content:"";position:absolute;top:0;bottom:0;right:24px;width:9px;background:rgba(58,42,69,.16)}
+  .nb i{position:absolute;left:4px;top:14px;bottom:14px;width:20px;
+    background:radial-gradient(circle at 10px 9px,var(--bg) 0 3px,#a993b5 3.4px 5.2px,transparent 5.6px) 0 0/20px 21px repeat-y}
+  .nb b{position:absolute;left:44px;right:40px;top:56px;height:62px;border-radius:9px;
+    background:#fff repeating-linear-gradient(transparent 0 15px,#efdcec 15px 16px);background-clip:content-box;padding:12px 10px;box-sizing:border-box}
+  .n1{--c:#f9cfe0;left:0;top:70px;transform:rotate(-8deg)}
+  .n2{--c:#d3f0e3;left:150px;top:30px;transform:rotate(3deg);z-index:2}
+  .n3{--c:#e3d3f7;left:300px;top:76px;transform:rotate(10deg)}
+  .star{position:absolute;color:#e0a400}
+  .doodle{position:absolute;color:rgba(142,95,192,.45)}
+  .doodle svg,.star svg{width:100%;height:100%}
+</style>
+</head>
+<body>
+<div class="hero" id="hero">
+  <div class="text">
+    <div class="logo"><img src="../../img/logo.svg" alt=""><h1>Rabis<span>quinho</span></h1></div>
+    <p>Seu caderno digital <b>fofinho</b>: pastas, cadernos, modelos lindos e <b>IA</b> para estudar.</p>
+    <div class="chips"><span class="chip">7 modelos</span><span class="chip">Word e PDF</span><span class="chip">Assistente de IA</span></div>
+  </div>
+  <div class="books">
+    <div class="nb n1"><i></i><b></b></div>
+    <div class="nb n2"><i></i><b></b></div>
+    <div class="nb n3"><i></i><b></b></div>
+  </div>
+  <span class="star" style="right:400px;top:40px;width:34px;height:34px"><svg viewBox="0 0 24 24" fill="#f7c948" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z"/></svg></span>
+  <span class="doodle" style="right:60px;top:30px;width:30px;height:30px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/></svg></span>
+  <span class="doodle" style="right:520px;bottom:34px;width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 2.6a2 2 0 0 1 4.2 0l.6 3.2a2 2 0 0 0 1.5 1.5l3.2.6a2 2 0 0 1 0 4.2l-3.2.6a2 2 0 0 0-1.5 1.5l-.6 3.2a2 2 0 0 1-4.2 0l-.6-3.2a2 2 0 0 0-1.5-1.5l-3.2-.6a2 2 0 0 1 0-4.2l3.2-.6a2 2 0 0 0 1.5-1.5z"/></svg></span>
+  <span class="doodle" style="right:40px;bottom:46px;width:34px;height:34px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.2 6.8a2.8 2.8 0 0 0-4-4L3.8 16.2a2 2 0 0 0-.5.8l-1.3 4.4a.5.5 0 0 0 .6.6l4.4-1.3a2 2 0 0 0 .8-.5z"/><path d="m15 5 4 4"/></svg></span>
+  <span class="doodle" style="left:40px;bottom:30px;width:26px;height:26px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 1 1 0 9Z"/></svg></span>
+  <span class="doodle" style="left:640px;top:36px;width:26px;height:26px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>
+</div>
+</body>
+</html>
