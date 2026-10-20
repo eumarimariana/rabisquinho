@@ -79,17 +79,27 @@ function subTitle(b, CW){
    Cada coluna precisa caber a sua maior palavra (senão ela vaza para a coluna vizinha);
    o espaço que sobra vai para as colunas com mais texto. */
 const plain = s => String(s||"").replace(/\*\*|==|\+\+|__|\{\{|\}\}|\*/g, "");
+/** Largura do texto em pt, medida com a fonte de verdade (ou estimada, se não der para medir). */
+let measureCtx = null;
+function textWidth(t, bold, sz){
+  try{
+    measureCtx = measureCtx || document.createElement("canvas").getContext("2d");
+    measureCtx.font = `${bold ? 700 : 400} ${sz}pt "${BF()}", Roboto, Arial, sans-serif`;
+    return measureCtx.measureText(t).width * 1.04;              // pequena folga para arredondamentos
+  }catch(e){ return t.length * sz * (bold ? 0.66 : 0.58); }
+}
+/** Palavras que podem quebrar depois de "/" (ex.: "Cliente/Empregador"). */
+const breakSlashes = s => String(s||"").replace(/\/(?=\S)/g, "/\u200B");
 function tableWidths(rows, CW){
   const n = Math.max(...rows.map(r=>r.length));
   const PAD = 12, sz = R.bodySz;
-  const charW = (bold) => sz * (bold ? 0.62 : 0.55);          // largura média de uma letra, em pt
   const minW = [], want = [];
   for(let c=0; c<n; c++){
     let longest = 0, total = 0;
     rows.forEach((r, ri) => {
-      const t = plain(r[c]), bold = ri===0 || c===0;
-      t.split(/\s+/).forEach(w => longest = Math.max(longest, w.length * charW(bold)));
-      total += t.length * charW(bold);
+      const t = plain(r[c]), bold = ri===0 || c===0, csz = ri===0 || c===0 ? sz : sz - 0.5;
+      t.split(/[\s/]+/).forEach(w => longest = Math.max(longest, textWidth(w, bold, csz)));
+      total += textWidth(t, bold, csz);
     });
     minW[c] = Math.min(longest + PAD, CW * 0.6);
     want[c] = Math.max(minW[c], total / rows.length + PAD);
@@ -154,7 +164,7 @@ export function bodyModel(blocks, I){
         out.push(TB(ws, b.rows.map((r,ri)=>ws.map((w,ci)=>{
           const head = ri===0, first = ci===0 && !head;
           const st = head ? base({b:true,color:R.thInk}) : first ? base({b:true,color:R.tfInk}) : base({sz:R.bodySz-0.5});
-          return cell(P(inl(r[ci]||"", st), {align: head||first ? "center" : "left"}),
+          return cell(P(inl(breakSlashes(r[ci]), st), {align: head||first ? "center" : "left"}),
             {bg: head ? R.th : first ? R.tf : null, bd:all(0.75,R.tbd), valign:"center"});
         }))));
         break;
